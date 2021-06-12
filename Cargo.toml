@@ -1,0 +1,9 @@
+[package]
+name = "stokast"
+version = "0.1.0"
+authors = ["Martin Algesten <martin@algesten.se>"]
+edition = "2018"
+
+[dependencies]
+stm32h7 = { version = "0.13", features = ["stm32h747cm7", "rt"] }
+cortex-m-rt = "0.6"
