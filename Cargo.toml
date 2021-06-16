@@ -10,3 +10,4 @@ cortex-m-rt = "0.6"
 embedded-hal = "0.2"
 teensy4-panic = "0.2"
 teensy4-bsp = { version = "0.2", features = ["rt"] }
+alg = { version = "*", path = "../alg" }

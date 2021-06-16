@@ -1,10 +1,9 @@
 #![no_std]
 #![no_main]
 
+use alg::Rnd;
 use teensy4_bsp as bsp;
 use teensy4_panic as _;
-
-const LED_PERIOD_MS: u32 = 200;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -14,8 +13,12 @@ fn main() -> ! {
     let pins = bsp::t40::into_pins(p.iomuxc);
     let mut led = bsp::configure_led(pins.p13);
 
+    let mut rnd = Rnd::new(1);
+
     loop {
         led.toggle();
-        systick.delay(LED_PERIOD_MS);
+
+        let delay = rnd.next() / (u32::max_value() / 500);
+        systick.delay(delay);
     }
 }
