@@ -5,5 +5,8 @@ authors = ["Martin Algesten <martin@algesten.se>"]
 edition = "2018"
 
 [dependencies]
-stm32h7 = { version = "0.13", features = ["stm32h747cm7", "rt"] }
+cortex-m = "0.6"
 cortex-m-rt = "0.6"
+embedded-hal = "0.2"
+teensy4-panic = "0.2"
+teensy4-bsp = { version = "0.2", features = ["rt"] }
