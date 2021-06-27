@@ -8,6 +8,8 @@ edition = "2018"
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
 embedded-hal = "0.2"
-teensy4-panic = "0.2"
 teensy4-bsp = { version = "0.2", features = ["rt"] }
+imxrt-hal = "*" # this is controlled by teensy4-bsp version
+log = "0.4"
+
 alg = { version = "*", path = "../alg" }

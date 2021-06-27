@@ -274,8 +274,9 @@ dependencies = [
  "cortex-m 0.6.7",
  "cortex-m-rt",
  "embedded-hal",
+ "imxrt-hal",
+ "log",
  "teensy4-bsp",
- "teensy4-panic",
 ]
 
 [[package]]
@@ -312,12 +313,6 @@ checksum = "c37bbaacff32ddf052dbae9b5ea3d6cf145772bd5421874bd6fcd4dda87a0699"
 dependencies = [
  "imxrt-boot-gen",
 ]
-
-[[package]]
-name = "teensy4-panic"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e307eec1203a9b340f41d77d72357fa6e327b1ab9b12d593725a5ce17236b2da"
 
 [[package]]
 name = "teensy4-pins"
