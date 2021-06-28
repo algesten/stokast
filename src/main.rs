@@ -62,23 +62,17 @@ fn main() -> ! {
     driver.set_scan_limit(max6959::ScanLimit::Digit0).unwrap();
     driver.set_intensity(20).unwrap();
 
-    let mut num = 255;
-
     info!("Sure!");
 
-    loop {
-        let reading: u16 = adc1.read(&mut a1).unwrap();
+    let _reading: u16 = adc1.read(&mut a1).unwrap();
 
+    loop {
         led.toggle();
 
-        driver.set_digit(Digit::Digit0, num).unwrap();
+        let num = rnd.next() / (u32::max_value() / 127);
 
-        num = num << 1;
-        if num == 0 {
-            num = 1;
-        }
+        driver.set_digit(Digit::Digit0, num as u8).unwrap();
 
-        let delay = rnd.next() / (u32::max_value() / 500) + reading as u32;
         systick.delay(100);
     }
 }
