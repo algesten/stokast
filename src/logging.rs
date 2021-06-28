@@ -8,14 +8,9 @@ use log::LevelFilter;
 use teensy4_bsp as bsp;
 
 /// Specify any logging filters here
-///
-/// See the BSP docs for more information
-/// on logging filters.
 const FILTERS: &[bsp::usb::Filter] = &[
-    // Try enabling this filter to only see
-    // log messages from main.rs.
-    //
     // ("{{crate_name}}", None),
+    // ("i2c", Some(LevelFilter::Info)),
 ];
 
 /// Initialize the USB logging system, and prepares the
@@ -34,7 +29,7 @@ pub fn init() -> Result<bsp::usb::Reader, bsp::usb::Error> {
         inst,
         bsp::usb::LoggingConfig {
             filters: FILTERS,
-            max_level: LevelFilter::Trace,
+            max_level: LevelFilter::Info,
             ..Default::default()
         },
     )

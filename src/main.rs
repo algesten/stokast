@@ -5,15 +5,17 @@
 extern crate log;
 
 use alg::Rnd;
-use embedded_hal::adc::OneShot;
-use teensy4_bsp as bsp;
-// use teensy4_panic as _;
-
 use bsp::hal::adc;
 use bsp::hal::ccm;
+use bsp::hal::gpio::GPIO;
+use cortex_m::peripheral::DWT;
+use embedded_hal::adc::OneShot;
+use teensy4_bsp as bsp;
 
+use crate::encoder::Encoder;
 use crate::max6958::Digit;
 
+mod encoder;
 mod logging;
 mod max6958;
 
@@ -22,13 +24,24 @@ fn main() -> ! {
     assert!(logging::init().is_ok());
 
     let mut p = bsp::Peripherals::take().unwrap();
-    let mut systick = bsp::SysTick::new(cortex_m::Peripherals::take().unwrap().SYST);
+    let mut cp = cortex_m::Peripherals::take().unwrap();
+    let mut systick = bsp::SysTick::new(cp.SYST);
+
+    // needed for encoder
+    cp.DCB.enable_trace();
+    cp.DWT.enable_cycle_counter();
 
     // Wait so we don't miss the first log message, crashes etc.
     systick.delay(1000);
 
     let pins = bsp::t40::into_pins(p.iomuxc);
     let mut led = bsp::configure_led(pins.p13);
+
+    let mut input1 = GPIO::new(pins.p11);
+    let mut input2 = GPIO::new(pins.p12);
+    input1.set_fast(true);
+    input2.set_fast(true);
+    let mut encoder = Encoder::new(input1, input2, 20_000);
 
     let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
 
@@ -60,20 +73,36 @@ fn main() -> ! {
 
     // driver.set_decode_mode(&[Digit::Digit0]).unwrap();
     driver.set_scan_limit(max6958::ScanLimit::Digit0).unwrap();
-    driver.set_intensity(20).unwrap();
+    driver.set_intensity(1).unwrap();
 
     info!("Sure!");
 
     let _reading: u16 = adc1.read(&mut a1).unwrap();
 
+    systick.delay(1000);
+
+    let mut n = 1_u8;
+
     loop {
-        led.toggle();
+        let dir = encoder.tick();
 
-        let num = rnd.next() / (u32::max_value() / 127);
-
-        driver.set_digit(Digit::Digit0, num as u8).unwrap();
-
-        systick.delay(100);
+        if dir < 0 {
+            if n == 1 {
+                n = 64;
+            } else {
+                n = n >> 1;
+            }
+            info!("back {}", n);
+            driver.set_digit(Digit::Digit0, n).unwrap();
+        } else if dir > 0 {
+            if n == 64 {
+                n = 1;
+            } else {
+                n = n << 1;
+            }
+            info!("forw {}", n);
+            driver.set_digit(Digit::Digit0, n).unwrap();
+        }
     }
 }
 
