@@ -12,10 +12,10 @@ use teensy4_bsp as bsp;
 use bsp::hal::adc;
 use bsp::hal::ccm;
 
-use crate::max6959::Digit;
+use crate::max6958::Digit;
 
 mod logging;
-mod max6959;
+mod max6958;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -43,15 +43,15 @@ fn main() -> ! {
     );
 
     // The return of "builder.build()" is a configured I2C master running at 100KHz.
-    let i2c1 = i2c1_builder.build(pins.p19, pins.p18);
+    let mut i2c1 = i2c1_builder.build(pins.p19, pins.p18);
 
-    // From datasheet MAX6959, serial max speed is 400KHz
-    // i2c1.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz400)
-    //     .unwrap();
+    // From datasheet MAX6958, serial max speed is 400KHz
+    i2c1.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz400)
+        .unwrap();
 
     let mut rnd = Rnd::new(1);
 
-    let mut driver = max6959::Max6959::new(i2c1, max6959::Variant::A);
+    let mut driver = max6958::Max6958::new(i2c1, max6958::Variant::A);
     driver.set_display_test(true).unwrap();
     systick.delay(1000);
     driver.set_display_test(false).unwrap();
@@ -59,7 +59,7 @@ fn main() -> ! {
     driver.set_shutdown(false).unwrap();
 
     // driver.set_decode_mode(&[Digit::Digit0]).unwrap();
-    driver.set_scan_limit(max6959::ScanLimit::Digit0).unwrap();
+    driver.set_scan_limit(max6958::ScanLimit::Digit0).unwrap();
     driver.set_intensity(20).unwrap();
 
     info!("Sure!");
