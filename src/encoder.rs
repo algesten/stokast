@@ -1,97 +1,165 @@
-//! A twiddly knob encoder.
+//! A twiddly knob encoder reader.
+//!
+//! ```ignore
+//!    +----+    +----+    
+//!    |    |    |    |       A
+//!  --+    +----+    +----
+//!       +----+    +----+    
+//!       |    |    |    |    B
+//!   ----+    +----+    +--
+//!        ^  ^ ^  ^
+//!        1  2 3  4
+//! ```
+//!
+//! The states are `AB`:
+//!
+//! 1. is `11`
+//! 2. is `01`
+//! 3. is `00`
+//! 4. is `10`
+//!
+//! The only valid transitions clock-wise are:
+//!
+//! * `11` -> `01`
+//! * `01` -> `00`
+//! * `00` -> `10`
+//! * `10` -> `11`
+//!
+//! And the reverse counter clock wise.
+//!
+//! * `01` -> `11`
+//! * `00` -> `01`
+//! * `10` -> `00`
+//! * `11` -> `10`
+//!
+//! We can make pairs to create a lookup table of valid pairs `1101`, `0100`, and -1 or 1 to denote direction.
+
+const TABLE: [i8; 16] = [
+    0,  // 0000
+    -1, // 0001
+    1,  // 0010
+    0,  // 0011
+    1,  // 0100
+    0,  // 0101
+    0,  // 0110
+    -1, // 0111
+    -1, // 1000
+    0,  // 1001
+    0,  // 1010
+    1,  // 1011
+    0,  // 1100
+    1,  // 1101
+    -1, // 1110
+    0,  // 1111
+];
 
 use bsp::hal::gpio::{Input, GPIO};
-use cortex_m::peripheral::DWT;
 use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
 /// Helper do read an encoder hooked up to two GPIO inputs.
-pub struct Encoder<P1, P2> {
-    d1: Debouncer<P1>,
-    d2: Debouncer<P2>,
-    high: bool,
+pub struct Encoder<PA, PB> {
+    pin_a: GPIO<PA, Input>,
+    pin_b: GPIO<PB, Input>,
+    prev_next: u8,
+    state: u8,
 }
 
-impl<P1, P2> Encoder<P1, P2>
+impl<PA, PB> Encoder<PA, PB>
 where
-    P1: Pin,
-    P2: Pin,
+    PA: Pin,
+    PB: Pin,
 {
-    pub fn new(d1: GPIO<P1, Input>, d2: GPIO<P2, Input>, cutoff: u32) -> Self {
+    pub fn new(pin_a: GPIO<PA, Input>, pin_b: GPIO<PB, Input>) -> Self {
         Encoder {
-            d1: Debouncer::new(d1, cutoff),
-            d2: Debouncer::new(d2, cutoff),
-            high: false,
+            pin_a,
+            pin_b,
+            prev_next: 0,
+            state: 0,
         }
     }
 
     pub fn tick(&mut self) -> i8 {
-        if let (Some(since1), Some(since2)) = (self.d1.tick(), self.d2.tick()) {
-            if self.high {
-                // already emitted. wait for signals to go low.
-                0
-            } else {
-                self.high = true;
-                if since1 < since2 {
-                    -1
-                } else {
-                    1
-                }
-            }
-        } else {
-            self.high = false;
-            0
+        // Rotate up last read 2 bits and discard the rest.
+        self.prev_next = (self.prev_next << 2) & 0b1100;
+
+        if self.pin_a.is_set() {
+            self.prev_next |= 0b10;
         }
+
+        if self.pin_b.is_set() {
+            self.prev_next |= 0b01;
+        }
+
+        let direction = TABLE[self.prev_next as usize];
+
+        if direction != 0 {
+            // Move current state up to make state for new, and put in the new.
+            self.state = (self.state << 4) | self.prev_next;
+
+            // A CCW rotation will always pass through this state
+            if self.state == 0b1110_1000 {
+                return -1;
+            }
+
+            // A CW rotation will always pass through this state
+            if self.state == 0b1101_0100 {
+                return 1;
+            }
+        }
+
+        0
     }
 }
 
-struct Debouncer<P> {
-    input: GPIO<P, Input>,
-    high_since: Option<u32>,
-    cutoff: u32,
-}
+// use cortex_m::peripheral::DWT;
+// struct Debouncer<P> {
+//     input: GPIO<P, Input>,
+//     high_since: Option<u32>,
+//     cutoff: u32,
+// }
 
-impl<P> Debouncer<P>
-where
-    P: Pin,
-{
-    pub fn new(input: GPIO<P, Input>, cutoff: u32) -> Self {
-        Debouncer {
-            input,
-            high_since: None,
-            cutoff,
-        }
-    }
+// impl<P> Debouncer<P>
+// where
+//     P: Pin,
+// {
+//     pub fn new(input: GPIO<P, Input>, cutoff: u32) -> Self {
+//         Debouncer {
+//             input,
+//             high_since: None,
+//             cutoff,
+//         }
+//     }
 
-    pub fn tick(&mut self) -> Option<u32> {
-        if self.input.is_set() {
-            let now = DWT::get_cycle_count();
+//     pub fn tick(&mut self) -> Option<u32> {
+//         if self.input.is_set() {
+//             let now = DWT::get_cycle_count();
 
-            if self.high_since.is_none() {
-                self.high_since = Some(now);
-            }
+//             if self.high_since.is_none() {
+//                 self.high_since = Some(now);
+//             }
 
-            let since = self.high_since.unwrap();
+//             let since = self.high_since.unwrap();
 
-            const U31: u32 = 2_u32.pow(31);
+//             const U31: u32 = 2_u32.pow(31);
 
-            let diff = if since > U31 && now < U31 {
-                // handle wrap-around where since hasn't
-                // wrapped around and now has.
-                let x = u32::MAX - since;
-                now + x
-            } else {
-                now - since
-            };
+//             let diff = if since > U31 && now < U31 {
+//                 // handle wrap-around where since hasn't
+//                 // wrapped around and now has.
+//                 let x = u32::MAX - since;
+//                 now + x
+//             } else {
+//                 now - since
+//             };
 
-            if diff >= self.cutoff {
-                self.high_since
-            } else {
-                None
-            }
-        } else {
-            self.high_since = None;
-            None
-        }
-    }
-}
+//             if diff >= self.cutoff {
+//                 self.high_since
+//             } else {
+//                 None
+//             }
+//         } else {
+//             self.high_since = None;
+//             None
+//         }
+//     }
+// }

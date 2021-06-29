@@ -8,7 +8,6 @@ use alg::Rnd;
 use bsp::hal::adc;
 use bsp::hal::ccm;
 use bsp::hal::gpio::GPIO;
-use cortex_m::peripheral::DWT;
 use embedded_hal::adc::OneShot;
 use teensy4_bsp as bsp;
 
@@ -19,6 +18,9 @@ mod encoder;
 mod logging;
 mod max6958;
 
+// TODO can I read this somewhere?
+pub const CPU_SPEED: u32 = 600_000_000;
+
 #[cortex_m_rt::entry]
 fn main() -> ! {
     assert!(logging::init().is_ok());
@@ -27,9 +29,9 @@ fn main() -> ! {
     let mut cp = cortex_m::Peripherals::take().unwrap();
     let mut systick = bsp::SysTick::new(cp.SYST);
 
-    // needed for encoder
-    cp.DCB.enable_trace();
-    cp.DWT.enable_cycle_counter();
+    // // needed for encoder
+    // cp.DCB.enable_trace();
+    // cp.DWT.enable_cycle_counter();
 
     // Wait so we don't miss the first log message, crashes etc.
     systick.delay(1000);
@@ -37,11 +39,15 @@ fn main() -> ! {
     let pins = bsp::t40::into_pins(p.iomuxc);
     let mut led = bsp::configure_led(pins.p13);
 
-    let mut input1 = GPIO::new(pins.p11);
-    let mut input2 = GPIO::new(pins.p12);
-    input1.set_fast(true);
-    input2.set_fast(true);
-    let mut encoder = Encoder::new(input1, input2, 20_000);
+    let mut pin_a = GPIO::new(pins.p11);
+    let mut pin_b = GPIO::new(pins.p12);
+    pin_a.set_fast(true);
+    pin_b.set_fast(true);
+
+    // 1.6E-5
+    // 16µS
+
+    let mut encoder = Encoder::new(pin_a, pin_b);
 
     let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
 
@@ -86,21 +92,19 @@ fn main() -> ! {
     loop {
         let dir = encoder.tick();
 
-        if dir < 0 {
+        if dir > 0 {
             if n == 1 {
                 n = 64;
             } else {
                 n = n >> 1;
             }
-            info!("back {}", n);
             driver.set_digit(Digit::Digit0, n).unwrap();
-        } else if dir > 0 {
+        } else if dir < 0 {
             if n == 64 {
                 n = 1;
             } else {
                 n = n << 1;
             }
-            info!("forw {}", n);
             driver.set_digit(Digit::Digit0, n).unwrap();
         }
     }
