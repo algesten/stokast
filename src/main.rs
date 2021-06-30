@@ -70,16 +70,14 @@ fn main() -> ! {
 
     // let mut rnd = Rnd::new(1);
 
-    let mut driver = max6958::Max6958::new(i2c1, max6958::Variant::A);
-    driver.set_display_test(true).unwrap();
-    systick.delay(1000);
-    driver.set_display_test(false).unwrap();
-
-    driver.set_shutdown(false).unwrap();
+    let mut seg = max6958::Max6958::new(i2c1, max6958::Variant::A);
+    seg.set_shutdown(false).unwrap();
 
     // driver.set_decode_mode(&[Digit::Digit0]).unwrap();
-    driver.set_scan_limit(max6958::ScanLimit::Digit0).unwrap();
-    driver.set_intensity(1).unwrap();
+    seg.set_scan_limit(max6958::ScanLimit::Digit0).unwrap();
+    seg.set_intensity(63).unwrap();
+    seg.set_decode_mode(&[Digit::Digit0, Digit::Digit1, Digit::Digit2, Digit::Digit3])
+        .unwrap();
 
     info!("Sure!");
 
@@ -93,20 +91,20 @@ fn main() -> ! {
         let dir = encoder.tick();
 
         if dir > 0 {
-            if n == 1 {
-                n = 64;
+            if n == 9 {
+                n = 0;
             } else {
-                n = n >> 1;
+                n += 1;
             }
-            driver.set_digit(Digit::Digit0, n).unwrap();
+            seg.set_digit(Digit::Digit0, n).unwrap();
             led.toggle();
         } else if dir < 0 {
-            if n == 64 {
-                n = 1;
+            if n == 0 {
+                n = 9;
             } else {
-                n = n << 1;
+                n -= 1;
             }
-            driver.set_digit(Digit::Digit0, n).unwrap();
+            seg.set_digit(Digit::Digit0, n).unwrap();
             led.toggle();
         }
     }
