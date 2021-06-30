@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate log;
 
-use alg::Rnd;
+// use alg::Rnd;
 use bsp::hal::adc;
 use bsp::hal::ccm;
 use bsp::hal::gpio::GPIO;
@@ -29,9 +29,9 @@ fn main() -> ! {
     let mut cp = cortex_m::Peripherals::take().unwrap();
     let mut systick = bsp::SysTick::new(cp.SYST);
 
-    // // needed for encoder
-    // cp.DCB.enable_trace();
-    // cp.DWT.enable_cycle_counter();
+    // // needed for timer
+    cp.DCB.enable_trace();
+    cp.DWT.enable_cycle_counter();
 
     // Wait so we don't miss the first log message, crashes etc.
     systick.delay(1000);
@@ -68,7 +68,7 @@ fn main() -> ! {
     i2c1.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz400)
         .unwrap();
 
-    let mut rnd = Rnd::new(1);
+    // let mut rnd = Rnd::new(1);
 
     let mut driver = max6958::Max6958::new(i2c1, max6958::Variant::A);
     driver.set_display_test(true).unwrap();
@@ -99,6 +99,7 @@ fn main() -> ! {
                 n = n >> 1;
             }
             driver.set_digit(Digit::Digit0, n).unwrap();
+            led.toggle();
         } else if dir < 0 {
             if n == 64 {
                 n = 1;
@@ -106,6 +107,7 @@ fn main() -> ! {
                 n = n << 1;
             }
             driver.set_digit(Digit::Digit0, n).unwrap();
+            led.toggle();
         }
     }
 }
