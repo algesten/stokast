@@ -4,10 +4,13 @@
 #[macro_use]
 extern crate log;
 
+use alg::Clock;
+use alg::Time;
 // use alg::Rnd;
 use bsp::hal::adc;
 use bsp::hal::ccm;
 use bsp::hal::gpio::GPIO;
+use cortex_m::peripheral::DWT;
 use embedded_hal::adc::OneShot;
 use teensy4_bsp as bsp;
 
@@ -85,9 +88,26 @@ fn main() -> ! {
 
     systick.delay(1000);
 
+    let mut clock = Clock::<_, CPU_SPEED>::new(DWT::get_cycle_count);
+    let mut start = clock.now();
+    let mut loop_count = 0_u32;
+
     let mut n = 1_u8;
 
     loop {
+        clock.tick();
+
+        let now = clock.now();
+
+        let time_lapsed = now - start;
+
+        if time_lapsed >= Time::from_secs(10) {
+            // 2021-07-01 this is: 71_424_242
+            info!("{} loop count: {}", time_lapsed, loop_count);
+            start = now;
+            loop_count = 0;
+        }
+
         let dir = encoder.tick();
 
         if dir > 0 {
@@ -107,6 +127,8 @@ fn main() -> ! {
             seg.set_digit(Digit::Digit0, n).unwrap();
             led.toggle();
         }
+
+        loop_count += 1;
     }
 }
 
