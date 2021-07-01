@@ -174,7 +174,7 @@ where
             // speed in millionths per millisecond
             let speed = if reading.1.signum() != self.prev.1.signum() {
                 // direction change, however ignore if it happens too fast (due to shitty encoders).
-                if dt.subsec_micros() < 2000 {
+                if dt.subsec_micros() < 4000 {
                     return 0;
                 } else {
                     0
@@ -185,9 +185,9 @@ where
                     // too slow to impact speed
                     0
                 } else if dt.subsec_millis() == 0 {
-                    1000_000
+                    1200_000
                 } else {
-                    (1000_000 / dt.subsec_millis()) as u32
+                    (1200_000 / dt.subsec_millis()) as u32
                 }
             };
 
