@@ -53,9 +53,12 @@ const TABLE: [i8; 16] = [
     0,  // 1111
 ];
 
+use alg::Time;
 use bsp::hal::gpio::{Input, GPIO};
 use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
+
+use crate::CPU_SPEED;
 
 /// Helper do read an encoder hooked up to two GPIO inputs.
 pub struct Encoder<PA, PB> {
@@ -78,8 +81,18 @@ where
             state: 0,
         }
     }
+}
 
-    pub fn tick(&mut self) -> i8 {
+pub trait EncoderTick {
+    fn tick(&mut self, now: Time<{ CPU_SPEED }>) -> i8;
+}
+
+impl<PA, PB> EncoderTick for Encoder<PA, PB>
+where
+    PA: Pin,
+    PB: Pin,
+{
+    fn tick(&mut self, _now: Time<{ CPU_SPEED }>) -> i8 {
         // Rotate up last read 2 bits and discard the rest.
         self.prev_next = (self.prev_next << 2) & 0b1100;
 
@@ -112,54 +125,104 @@ where
     }
 }
 
-// use cortex_m::peripheral::DWT;
-// struct Debouncer<P> {
-//     input: GPIO<P, Input>,
-//     high_since: Option<u32>,
-//     cutoff: u32,
-// }
+pub struct EncoderAccelerator<E> {
+    /// Encoder to read impulses from.a
+    encoder: E,
+    /// This keeps the previous reading.,
+    prev: Reading,
+    /// Current speed in millionths per milliseconds.
+    speed: u32,
+    /// Accumulator of millionths.
+    acc: u32,
+    /// When we last emitted a tick value.
+    last_emit: Time<{ CPU_SPEED }>,
+}
 
-// impl<P> Debouncer<P>
-// where
-//     P: Pin,
-// {
-//     pub fn new(input: GPIO<P, Input>, cutoff: u32) -> Self {
-//         Debouncer {
-//             input,
-//             high_since: None,
-//             cutoff,
-//         }
-//     }
+/// Deceleration in millionths per millisecond
+const DECELERATION: u32 = 500;
 
-//     pub fn tick(&mut self) -> Option<u32> {
-//         if self.input.is_set() {
-//             let now = DWT::get_cycle_count();
+#[derive(Clone, Copy)]
+struct Reading(Time<{ CPU_SPEED }>, i8);
 
-//             if self.high_since.is_none() {
-//                 self.high_since = Some(now);
-//             }
+impl<E> EncoderAccelerator<E>
+where
+    E: EncoderTick,
+{
+    pub fn new(encoder: E) -> Self {
+        EncoderAccelerator {
+            encoder,
+            prev: Reading(Time::new(0), 0),
+            speed: 0,
+            acc: 0,
+            last_emit: Time::new(0),
+        }
+    }
+}
 
-//             let since = self.high_since.unwrap();
+impl<E> EncoderTick for EncoderAccelerator<E>
+where
+    E: EncoderTick,
+{
+    fn tick(&mut self, now: Time<{ CPU_SPEED }>) -> i8 {
+        let direction = self.encoder.tick(now);
 
-//             const U31: u32 = 2_u32.pow(31);
+        if direction != 0 {
+            let reading = Reading(now, direction);
 
-//             let diff = if since > U31 && now < U31 {
-//                 // handle wrap-around where since hasn't
-//                 // wrapped around and now has.
-//                 let x = u32::MAX - since;
-//                 now + x
-//             } else {
-//                 now - since
-//             };
+            // speed in millionths per millisecond
+            let speed = if reading.1.signum() != self.prev.1.signum() {
+                // direction change. stop.
+                0
+            } else {
+                // calculate new speed
+                let dt = reading.0 - self.prev.0;
 
-//             if diff >= self.cutoff {
-//                 self.high_since
-//             } else {
-//                 None
-//             }
-//         } else {
-//             self.high_since = None;
-//             None
-//         }
-//     }
-// }
+                if dt.seconds() > 0 {
+                    // too slow to impact speed
+                    0
+                } else if dt.subsec_millis() == 0 {
+                    1000_000
+                } else {
+                    (1000_000 / dt.subsec_millis()) as u32
+                }
+            };
+
+            if speed > self.speed || speed == 0 {
+                info!("speed {}", speed);
+                self.speed = speed;
+            }
+
+            self.prev = reading;
+            self.last_emit = now;
+
+            // rotary movements always affect the reading. emit directly.
+            return direction;
+        }
+
+        if now - self.last_emit >= Time::from_millis(1) {
+            self.last_emit = now; // might not emit actually.
+
+            if self.speed > DECELERATION {
+                self.speed -= DECELERATION;
+            } else {
+                self.speed = 0;
+            }
+
+            // build up in the accumulator the millionths.
+            self.acc += self.speed;
+
+            if self.acc >= 1000_000 {
+                self.acc = self.acc % 1000_000;
+
+                // this will be the correct direction.
+                return self.prev.1;
+            }
+        }
+
+        if self.speed == 0 {
+            self.acc = 0;
+        }
+
+        0
+    }
+}

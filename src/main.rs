@@ -15,11 +15,14 @@ use embedded_hal::adc::OneShot;
 use teensy4_bsp as bsp;
 
 use crate::encoder::Encoder;
+use crate::encoder::EncoderAccelerator;
+use crate::encoder::EncoderTick;
 use crate::max6958::Digit;
 
 mod encoder;
 mod logging;
 mod max6958;
+mod state;
 
 // TODO can I read this somewhere?
 pub const CPU_SPEED: u32 = 600_000_000;
@@ -50,7 +53,8 @@ fn main() -> ! {
     // 1.6E-5
     // 16µS
 
-    let mut encoder = Encoder::new(pin_a, pin_b);
+    let enc_inner = Encoder::new(pin_a, pin_b);
+    let mut encoder = EncoderAccelerator::new(enc_inner);
 
     let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
 
@@ -92,7 +96,9 @@ fn main() -> ! {
     let mut start = clock.now();
     let mut loop_count = 0_u32;
 
-    let mut n = 1_u8;
+    let mut n = 0_u16;
+
+    // led.toggle();
 
     loop {
         clock.tick();
@@ -102,30 +108,27 @@ fn main() -> ! {
         let time_lapsed = now - start;
 
         if time_lapsed >= Time::from_secs(10) {
-            // 2021-07-01 this is: 71_424_242
+            // 2021-07-01 this is: 71_424_181
+            //  rotary enc decel   52_566_664
             info!("{} loop count: {}", time_lapsed, loop_count);
             start = now;
             loop_count = 0;
         }
 
-        let dir = encoder.tick();
+        let dir = encoder.tick(now);
 
         if dir > 0 {
-            if n == 9 {
-                n = 0;
-            } else {
+            if n < 9999 {
                 n += 1;
+                // info!("{}", n);
+                seg.set_digit(Digit::Digit0, (n % 10) as u8).unwrap();
             }
-            seg.set_digit(Digit::Digit0, n).unwrap();
-            led.toggle();
         } else if dir < 0 {
-            if n == 0 {
-                n = 9;
-            } else {
+            if n > 0 {
                 n -= 1;
+                // info!("{}", n);
+                seg.set_digit(Digit::Digit0, (n % 10) as u8).unwrap();
             }
-            seg.set_digit(Digit::Digit0, n).unwrap();
-            led.toggle();
         }
 
         loop_count += 1;
