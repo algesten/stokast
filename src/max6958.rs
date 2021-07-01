@@ -79,7 +79,7 @@ where
     }
 
     pub fn set_digit(&mut self, digit: Digit, value: u8) -> Result<(), E> {
-        info!("set_digit {:?} {}", digit, value);
+        debug!("set_digit {:?} {}", digit, value);
         self.write_register(digit.as_reg(), value)
     }
 
@@ -104,10 +104,10 @@ pub enum ScanLimit {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Digit {
-    Digit0 = 0x00,
-    Digit1 = 0x01,
-    Digit2 = 0x02,
-    Digit3 = 0x03,
+    Digit0 = 0b0001,
+    Digit1 = 0b0010,
+    Digit2 = 0b0100,
+    Digit3 = 0b1000,
 }
 
 impl Digit {

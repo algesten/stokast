@@ -192,7 +192,6 @@ where
             };
 
             if speed > self.speed || speed == 0 {
-                info!("speed {}", speed);
                 self.speed = speed;
             }
 
