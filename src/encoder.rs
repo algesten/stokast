@@ -169,14 +169,18 @@ where
         if direction != 0 {
             let reading = Reading(now, direction);
 
+            let dt = reading.0 - self.prev.0;
+
             // speed in millionths per millisecond
             let speed = if reading.1.signum() != self.prev.1.signum() {
-                // direction change. stop.
-                0
+                // direction change, however ignore if it happens too fast (due to shitty encoders).
+                if dt.subsec_micros() < 2000 {
+                    return 0;
+                } else {
+                    0
+                }
             } else {
                 // calculate new speed
-                let dt = reading.0 - self.prev.0;
-
                 if dt.seconds() > 0 {
                     // too slow to impact speed
                     0
