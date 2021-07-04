@@ -58,7 +58,7 @@ use bsp::hal::gpio::{Input, GPIO};
 use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
-use crate::CPU_SPEED;
+use crate::{input::DeltaInput, CPU_SPEED};
 
 /// Helper do read an encoder hooked up to two GPIO inputs.
 pub struct Encoder<PA, PB> {
@@ -83,11 +83,7 @@ where
     }
 }
 
-pub trait EncoderTick {
-    fn tick(&mut self, now: Time<{ CPU_SPEED }>) -> i8;
-}
-
-impl<PA, PB> EncoderTick for Encoder<PA, PB>
+impl<PA, PB> DeltaInput for Encoder<PA, PB>
 where
     PA: Pin,
     PB: Pin,
@@ -146,7 +142,7 @@ struct Reading(Time<{ CPU_SPEED }>, i8);
 
 impl<E> EncoderAccelerator<E>
 where
-    E: EncoderTick,
+    E: DeltaInput,
 {
     pub fn new(encoder: E) -> Self {
         EncoderAccelerator {
@@ -159,9 +155,9 @@ where
     }
 }
 
-impl<E> EncoderTick for EncoderAccelerator<E>
+impl<E> DeltaInput for EncoderAccelerator<E>
 where
-    E: EncoderTick,
+    E: DeltaInput,
 {
     fn tick(&mut self, now: Time<{ CPU_SPEED }>) -> i8 {
         let direction = self.encoder.tick(now);
