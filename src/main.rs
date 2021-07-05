@@ -17,7 +17,6 @@ use crate::max6958::Digit;
 use crate::state::OperQueue;
 use crate::state::State;
 
-mod encoder;
 mod input;
 mod logging;
 mod max6958;
