@@ -91,11 +91,11 @@ impl State {
                         display = Some(Display::Length(n as u8));
                     }
                 }
-                Oper::Offset(i, x) => {
-                    let t = &mut self.params.tracks[i];
+                Oper::Offset(i, _x) => {
+                    let _t = &mut self.params.tracks[i];
                 }
-                Oper::Steps(i, x) => {
-                    let t = &mut self.params.tracks[i];
+                Oper::Steps(i, _x) => {
+                    let _t = &mut self.params.tracks[i];
                 }
             }
         }
