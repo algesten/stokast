@@ -1,16 +1,9 @@
-use alg::Time;
+use alg::clock::Time;
+use alg::input::DeltaInput;
 
-use crate::{
-    state::{Oper, OperQueue},
-    CPU_SPEED,
-};
-
-/// An input that produces deltas. Think rotary encoder that will give us
-/// -1, 0 or 1.
-pub trait DeltaInput {
-    /// Polled every main-loop run. Returns 0 as long as there isn't a value.
-    fn tick(&mut self, now: Time<{ CPU_SPEED }>) -> i8;
-}
+use crate::state::Oper;
+use crate::state::OperQueue;
+use crate::CPU_SPEED;
 
 pub struct Inputs<RSeed, RLen, Roffs1, RStep1, Roffs2, RStep2, Roffs3, RStep3, Roffs4, RStep4> {
     pub seed: RSeed,
@@ -32,16 +25,16 @@ pub struct Inputs<RSeed, RLen, Roffs1, RStep1, Roffs2, RStep2, Roffs3, RStep3, R
 impl<RSeed, RLen, Roffs1, RStep1, Roffs2, RStep2, Roffs3, RStep3, Roffs4, RStep4>
     Inputs<RSeed, RLen, Roffs1, RStep1, Roffs2, RStep2, Roffs3, RStep3, Roffs4, RStep4>
 where
-    RSeed: DeltaInput,
-    RLen: DeltaInput,
-    Roffs1: DeltaInput,
-    RStep1: DeltaInput,
-    Roffs2: DeltaInput,
-    RStep2: DeltaInput,
-    Roffs3: DeltaInput,
-    RStep3: DeltaInput,
-    Roffs4: DeltaInput,
-    RStep4: DeltaInput,
+    RSeed: DeltaInput<{ CPU_SPEED }>,
+    RLen: DeltaInput<{ CPU_SPEED }>,
+    Roffs1: DeltaInput<{ CPU_SPEED }>,
+    RStep1: DeltaInput<{ CPU_SPEED }>,
+    Roffs2: DeltaInput<{ CPU_SPEED }>,
+    RStep2: DeltaInput<{ CPU_SPEED }>,
+    Roffs3: DeltaInput<{ CPU_SPEED }>,
+    RStep3: DeltaInput<{ CPU_SPEED }>,
+    Roffs4: DeltaInput<{ CPU_SPEED }>,
+    RStep4: DeltaInput<{ CPU_SPEED }>,
 {
     pub fn tick(&mut self, now: Time<{ CPU_SPEED }>, todo: &mut OperQueue) {
         // Global seed
@@ -111,11 +104,5 @@ where
                 todo.push(Oper::Steps(3, x));
             }
         }
-    }
-}
-
-impl DeltaInput for () {
-    fn tick(&mut self, _now: Time<{ CPU_SPEED }>) -> i8 {
-        0
     }
 }

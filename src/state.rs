@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use alg::{Generated, Params, Time, STOKAST_PARAMS};
+use alg::clock::Time;
+use alg::gen::{Generated, Params, STOKAST_PARAMS};
 use arrayvec::ArrayVec;
 
 use crate::CPU_SPEED;
@@ -12,7 +13,8 @@ pub struct State {
     /// Current display mode.
     pub display: Display,
 
-    /// Time when display was last updated.
+    /// Time when display was last updated. This is used to automatically
+    /// switch back to the Run mode once left idle for a bit.
     pub display_last_update: Time<{ CPU_SPEED }>,
 
     /// Generative parameters for generated.
@@ -28,7 +30,9 @@ pub enum Display {
     /// This is the default we go back to after showing something else.
     Run,
     /// Seed showing 0-9999.
-    Seed,
+    Seed(u16),
+    /// Length showing 2-32.
+    Length(u8),
 }
 
 impl Default for Display {
@@ -59,8 +63,9 @@ impl State {
         }
     }
 
-    pub fn update(&mut self, _now: Time<{ CPU_SPEED }>, todo: impl Iterator<Item = Oper>) {
+    pub fn update(&mut self, now: Time<{ CPU_SPEED }>, todo: impl Iterator<Item = Oper>) {
         let mut regenerate = false;
+        let mut display = None;
 
         for oper in todo {
             match oper {
@@ -72,6 +77,7 @@ impl State {
                     if n >= 0 && n <= 9999 {
                         self.params.seed = (n + SEED_BASE) as u32;
                         regenerate = true;
+                        display = Some(Display::Seed(n as u16));
                     }
                 }
 
@@ -82,15 +88,25 @@ impl State {
                     if n >= 2 && n <= 64 {
                         self.params.pattern_length = n as u8;
                         regenerate = true;
+                        display = Some(Display::Length(n as u8));
                     }
                 }
-                Oper::Offset(i, x) => todo!(),
-                Oper::Steps(i, x) => todo!(),
+                Oper::Offset(i, x) => {
+                    let t = &mut self.params.tracks[i];
+                }
+                Oper::Steps(i, x) => {
+                    let t = &mut self.params.tracks[i];
+                }
             }
         }
 
         if regenerate {
             self.generated = Generated::new(self.params);
+        }
+
+        if let Some(d) = display {
+            self.display = d;
+            self.display_last_update = now;
         }
     }
 }

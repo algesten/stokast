@@ -4,11 +4,12 @@
 #[macro_use]
 extern crate log;
 
-use alg::Clock;
-use alg::Time;
-// use alg::Rnd;
+use alg::clock::Clock;
+use alg::clock::Time;
 use bsp::hal::ccm;
 use cortex_m::peripheral::DWT;
+use embedded_hal::spi;
+use imxrt_hal::gpio::GPIO;
 use teensy4_bsp as bsp;
 
 use crate::input::Inputs;
@@ -42,6 +43,8 @@ fn main() -> ! {
     cp.DCB.enable_trace();
     cp.DWT.enable_cycle_counter();
 
+    let mut clock = Clock::<_, CPU_SPEED>::new(DWT::get_cycle_count);
+
     // Wait so we don't miss the first log message, crashes etc.
     systick.delay(1000);
 
@@ -56,23 +59,35 @@ fn main() -> ! {
         ccm::spi::PrescalarSelect::LPSPI_PODF_5,
     );
 
-    let mut spi = spi4_builder.build(pins.p11, pins.p12, pins.p13);
+    let mut spi_io = spi4_builder.build(pins.p11, pins.p12, pins.p13);
 
     // // From datasheet for MCP23S17 we see that max speed is 10MHz
-    // spi.set_clock_speed(bsp::hal::spi::ClockSpeed(1_000_000))
-    //     .unwrap();
+    spi_io
+        .set_clock_speed(bsp::hal::spi::ClockSpeed(5_000_000))
+        .unwrap();
 
-    // SPI has no addressing mechanic (like I2C), so instead it selects the chip to talk to
-    // using another pin. Since we use a single chip, we can set it like this.
-    // _However_ it seems the MCP23S17 specifically, in addition to the CS pin also can run in
-    // with an address set by some pins (HAEN).
-    spi.enable_chip_select_0(pins.p10);
+    let spi_cs = GPIO::new(pins.p10);
+    let spi_cs = spi_cs.output();
 
-    spi.clear_fifo();
+    spi_io.set_mode(spi::MODE_0).unwrap();
+    spi_io.clear_fifo();
 
-    let mut io = mcp23s17::builder().build(spi);
-
-    io.config().unwrap();
+    let _io = mcp23s17::builder()
+        //
+        .input(0)
+        .enable_interrupt(mcp23s17::InterruptMode::CompareAgainstPrevious)
+        .done()
+        //
+        .input(1)
+        .enable_interrupt(mcp23s17::InterruptMode::CompareAgainstPrevious)
+        .done()
+        //
+        .input(2)
+        .enable_interrupt(mcp23s17::InterruptMode::CompareAgainstPrevious)
+        .done()
+        //
+        .build(spi_io, spi_cs)
+        .unwrap();
 
     // let enc_inner = Encoder::new(pin_a, pin_b);
     // let mut encoder = EncoderAccelerator::new(enc_inner);
@@ -110,9 +125,6 @@ fn main() -> ! {
 
     info!("Sure!");
 
-    systick.delay(1000);
-
-    let mut clock = Clock::<_, CPU_SPEED>::new(DWT::get_cycle_count);
     let mut start = clock.now();
     let mut loop_count = 0_u32;
 

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 //! Driver for Max6958/Max6959 segment LED controller.
 //! Datasheet here: https://datasheets.maximintegrated.com/en/ds/MAX6958-MAX6958.pdf
 
