@@ -142,103 +142,136 @@ fn main() -> ! {
         (l1 as *const u16, l2 as *const u16)
     });
 
+    // Let's assume the u16 is transferred as:
+    // [A7, A6, A5, A4,   A3, A2, A1, A0,   B7, B6, B5, B4,   B3, B2, B1, B0]
+
     let mut inputs = Inputs {
         /// Clock signal in. Inverted.
         clock: DigitalEdgeInput::new(PinDigitalIn(pin_clk), true),
         /// Reset signal in. Inverted.
         reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst), true),
 
+        // ext1 b0 - pin_a
+        // ext1 b1 - pin_b
         seed: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0000_0000_0001,
             0b0000_0000_0000_0010,
         )),
+        // ext1 a2
         seed_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext1, 0b0000_0100_0000_0000),
             false,
         ),
 
+        // ext2 b0 - pin_a
+        // ext2 b1 - pin_b
         length: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0000_0000_0001,
             0b0000_0000_0000_0010,
         )),
+        // ext2 a2
         length_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext2, 0b0000_0100_0000_0000),
             false,
         ),
 
+        // ext1 b2 - pin_a
+        // ext1 b3 - pin_b
         offs1: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0000_0000_0100,
             0b0000_0000_0000_1000,
         )),
+        // ext1 a3
         offs1_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext1, 0b0000_1000_0000_0000),
             false,
         ),
+        // ext b4 - pin_a
+        // ext b5 - pin_b
         step1: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0000_0001_0000,
             0b0000_0000_0010_0000,
         )),
+        // ext a4
         step1_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext1, 0b0001_0000_0000_0000),
             false,
         ),
 
+        // ext1 b6 - pin_a
+        // ext1 b7 - pin_b
         offs2: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0000_0100_0000,
             0b0000_0000_1000_0000,
         )),
+        // ext1 a5
         offs2_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext1, 0b0010_0000_0000_0000),
             false,
         ),
+        // ext1 a0 - pin_a
+        // ext1 a1 - pin_b
         step2: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0001_0000_0000,
             0b0000_0010_0000_0000,
         )),
+        // ext1 a6
         step2_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext1, 0b0100_0000_0000_0000),
             false,
         ),
 
+        // ext2 b2 - pin_a
+        // ext2 b3 - pin_b
         offs3: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0000_0000_0100,
             0b0000_0000_0000_1000,
         )),
+        // ext2 a3
         offs3_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext2, 0b0000_1000_0000_0000),
             false,
         ),
+        // ext2 b4 - pin_a
+        // ext2 b5 - pin_b
         step3: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0000_0001_0000,
             0b0000_0000_0010_0000,
         )),
+        // ext2 a4
         step3_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext2, 0b0001_0000_0000_0000),
             false,
         ),
 
+        // ext2 b6 - pin_a
+        // ext2 b7 - pin_b
         offs4: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0000_0100_0000,
             0b0000_0000_1000_0000,
         )),
+        // ext2 a5
         offs4_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext2, 0b0010_0000_0000_0000),
             false,
         ),
+        // ext2 a0 - pin_a
+        // ext2 a1 - pin_b
         step4: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0001_0000_0000,
             0b0000_0010_0000_0000,
         )),
+        // ext2 a6
         step4_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext2, 0b0100_0000_0000_0000),
             false,
