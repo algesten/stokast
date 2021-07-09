@@ -8,6 +8,7 @@ use crate::CPU_SPEED;
 
 pub const TRACK_COUNT: usize = 4;
 
+/// App state
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct State {
     /// Current display mode.
@@ -22,6 +23,12 @@ pub struct State {
 
     /// The generated tracks.
     pub generated: Generated<{ TRACK_COUNT }>,
+
+    /// Current play head. Goes from 0..(params.pattern_length - 1)
+    pub play_head: usize,
+
+    /// If next tick is going to reset back to 0.
+    pub next_is_reset: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +55,8 @@ const SEED_BASE: i32 = 0x616c67;
 
 /// The operations that can be done on the state.
 pub enum Oper {
+    Tick,
+    Reset,
     Seed(i8),
     Length(i8),
     Offset(usize, i8),
@@ -69,6 +78,28 @@ impl State {
 
         for oper in todo {
             match oper {
+                Oper::Tick => {
+                    self.play_head = if self.next_is_reset {
+                        self.next_is_reset = false;
+
+                        0
+                    } else {
+                        let n = self.play_head + 1;
+
+                        // play_head goes from 0..(pattern_length - 1).
+                        if n as u8 >= self.params.pattern_length {
+                            0
+                        } else {
+                            n
+                        }
+                    };
+                }
+
+                Oper::Reset => {
+                    // Whatever tick is coming next, it's going to reset back to 0.
+                    self.next_is_reset = true;
+                }
+
                 //
                 Oper::Seed(x) => {
                     let s = self.params.seed as i32 - SEED_BASE;

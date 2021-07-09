@@ -6,6 +6,7 @@ extern crate log;
 
 use alg::clock::Clock;
 use alg::clock::Time;
+use alg::input::DigitalEdgeInput;
 use bsp::hal::ccm;
 use cortex_m::peripheral::DWT;
 use embedded_hal::spi;
@@ -13,6 +14,7 @@ use imxrt_hal::gpio::GPIO;
 use teensy4_bsp as bsp;
 
 use crate::input::Inputs;
+use crate::input::PinDigitalIn;
 use crate::max6958::Digit;
 use crate::state::OperQueue;
 use crate::state::State;
@@ -48,6 +50,9 @@ fn main() -> ! {
     systick.delay(1000);
 
     let pins = bsp::t40::into_pins(p.iomuxc);
+
+    let pin_clk = GPIO::new(pins.p3);
+    let pin_rst = GPIO::new(pins.p4);
 
     // 1.6E-5
     // 16µS
@@ -130,6 +135,10 @@ fn main() -> ! {
     let mut loop_count = 0_u32;
 
     let mut inputs = Inputs {
+        /// Clock signal in. Inverted.
+        clock: DigitalEdgeInput::new(PinDigitalIn(pin_clk), true),
+        /// Reset signal in. Inverted.
+        reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst), true),
         seed: (),
         length: (),
         offs1: (),
