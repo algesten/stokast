@@ -8,7 +8,7 @@ use alg::clock::Clock;
 use alg::clock::Time;
 use alg::encoder::BitmaskQuadratureSource;
 use alg::encoder::Encoder;
-use alg::input::DigitalEdgeInput;
+use alg::input::{BitmaskDigitalInput, DigitalEdgeInput};
 use bsp::hal::ccm;
 use cortex_m::peripheral::DWT;
 use embedded_hal::spi;
@@ -147,56 +147,102 @@ fn main() -> ! {
         clock: DigitalEdgeInput::new(PinDigitalIn(pin_clk), true),
         /// Reset signal in. Inverted.
         reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst), true),
+
         seed: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0000_0000_0001,
             0b0000_0000_0000_0010,
         )),
+        seed_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1, 0b0000_0100_0000_0000),
+            false,
+        ),
+
         length: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0000_0000_0001,
             0b0000_0000_0000_0010,
         )),
+        length_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext2, 0b0000_0100_0000_0000),
+            false,
+        ),
+
         offs1: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0000_0000_0100,
             0b0000_0000_0000_1000,
         )),
+        offs1_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1, 0b0000_1000_0000_0000),
+            false,
+        ),
         step1: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0000_0001_0000,
             0b0000_0000_0010_0000,
         )),
+        step1_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1, 0b0001_0000_0000_0000),
+            false,
+        ),
+
         offs2: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0000_0100_0000,
             0b0000_0000_1000_0000,
         )),
+        offs2_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1, 0b0010_0000_0000_0000),
+            false,
+        ),
         step2: Encoder::new(BitmaskQuadratureSource::new(
             io_ext1,
             0b0000_0001_0000_0000,
             0b0000_0010_0000_0000,
         )),
+        step2_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1, 0b0100_0000_0000_0000),
+            false,
+        ),
+
         offs3: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0000_0000_0100,
             0b0000_0000_0000_1000,
         )),
+        offs3_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext2, 0b0000_1000_0000_0000),
+            false,
+        ),
         step3: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0000_0001_0000,
             0b0000_0000_0010_0000,
         )),
+        step3_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext2, 0b0001_0000_0000_0000),
+            false,
+        ),
+
         offs4: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0000_0100_0000,
             0b0000_0000_1000_0000,
         )),
+        offs4_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext2, 0b0010_0000_0000_0000),
+            false,
+        ),
         step4: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2,
             0b0000_0001_0000_0000,
             0b0000_0010_0000_0000,
         )),
+        step4_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext2, 0b0100_0000_0000_0000),
+            false,
+        ),
     };
 
     let mut start = clock.now();
