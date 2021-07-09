@@ -1,3 +1,5 @@
+use core::cell::RefCell;
+
 use alg::clock::Time;
 use alg::input::DeltaInput;
 use alg::input::DigitalInput;
@@ -5,12 +7,16 @@ use alg::input::Edge;
 use alg::input::EdgeInput;
 use alg::input::HiLo;
 use bsp::hal::gpio::{Input, GPIO};
+use cortex_m::interrupt::Mutex;
 use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
 use crate::state::Oper;
 use crate::state::OperQueue;
 use crate::CPU_SPEED;
+
+pub static IO_EXT1: Mutex<RefCell<u16>> = Mutex::new(RefCell::new(0));
+pub static IO_EXT2: Mutex<RefCell<u16>> = Mutex::new(RefCell::new(0));
 
 pub struct Inputs<
     Digi1,

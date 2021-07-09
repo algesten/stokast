@@ -6,6 +6,8 @@ extern crate log;
 
 use alg::clock::Clock;
 use alg::clock::Time;
+use alg::encoder::BitmaskQuadratureSource;
+use alg::encoder::Encoder;
 use alg::input::DigitalEdgeInput;
 use bsp::hal::ccm;
 use cortex_m::peripheral::DWT;
@@ -15,9 +17,12 @@ use teensy4_bsp as bsp;
 
 use crate::input::Inputs;
 use crate::input::PinDigitalIn;
+use crate::input::IO_EXT1;
+use crate::input::IO_EXT2;
 use crate::max6958::Digit;
 use crate::state::OperQueue;
 use crate::state::State;
+use crate::state::OPER_QUEUE;
 
 mod input;
 mod logging;
@@ -131,31 +136,79 @@ fn main() -> ! {
 
     info!("Sure!");
 
-    let mut start = clock.now();
-    let mut loop_count = 0_u32;
+    let (io_ext1, io_ext2) = cortex_m::interrupt::free(|cs| {
+        let l1 = IO_EXT1.borrow(cs).as_ptr();
+        let l2 = IO_EXT2.borrow(cs).as_ptr();
+        (l1 as *const u16, l2 as *const u16)
+    });
 
     let mut inputs = Inputs {
         /// Clock signal in. Inverted.
         clock: DigitalEdgeInput::new(PinDigitalIn(pin_clk), true),
         /// Reset signal in. Inverted.
         reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst), true),
-        seed: (),
-        length: (),
-        offs1: (),
-        step1: (),
-        offs2: (),
-        step2: (),
-        offs3: (),
-        step3: (),
-        offs4: (),
-        step4: (),
+        seed: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1,
+            0b0000_0000_0000_0001,
+            0b0000_0000_0000_0010,
+        )),
+        length: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2,
+            0b0000_0000_0000_0001,
+            0b0000_0000_0000_0010,
+        )),
+        offs1: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1,
+            0b0000_0000_0000_0100,
+            0b0000_0000_0000_1000,
+        )),
+        step1: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1,
+            0b0000_0000_0001_0000,
+            0b0000_0000_0010_0000,
+        )),
+        offs2: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1,
+            0b0000_0000_0100_0000,
+            0b0000_0000_1000_0000,
+        )),
+        step2: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1,
+            0b0000_0001_0000_0000,
+            0b0000_0010_0000_0000,
+        )),
+        offs3: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2,
+            0b0000_0000_0000_0100,
+            0b0000_0000_0000_1000,
+        )),
+        step3: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2,
+            0b0000_0000_0001_0000,
+            0b0000_0000_0010_0000,
+        )),
+        offs4: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2,
+            0b0000_0000_0100_0000,
+            0b0000_0000_1000_0000,
+        )),
+        step4: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2,
+            0b0000_0001_0000_0000,
+            0b0000_0010_0000_0000,
+        )),
     };
+
+    let mut start = clock.now();
+    let mut loop_count = 0_u32;
 
     let mut state = State {
         ..Default::default()
     };
 
-    let mut opers = OperQueue::new();
+    cortex_m::interrupt::free(|cs| {
+        *OPER_QUEUE.borrow(cs).borrow_mut() = Some(OperQueue::new());
+    });
 
     loop {
         clock.tick();
@@ -171,11 +224,16 @@ fn main() -> ! {
             loop_count = 0;
         }
 
-        // Read all potential input and turn it into operations.
-        inputs.tick(now, &mut opers);
+        cortex_m::interrupt::free(|cs| {
+            let mut refmut = OPER_QUEUE.borrow(cs).borrow_mut();
+            let opers = refmut.as_mut().unwrap();
 
-        // Apply the operations to the state.
-        state.update(now, opers.drain(0..opers.len()));
+            // Read all potential input and turn it into operations.
+            inputs.tick(now, opers);
+
+            // Apply the operations to the state.
+            state.update(now, opers.drain(0..opers.len()));
+        });
 
         loop_count += 1;
     }
