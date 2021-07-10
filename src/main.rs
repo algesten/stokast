@@ -21,7 +21,6 @@ use crate::lock::Lock;
 use crate::max6958::Digit;
 use crate::state::OperQueue;
 use crate::state::State;
-use crate::state::OPER_QUEUE;
 
 mod input;
 mod lock;
@@ -273,9 +272,7 @@ fn main() -> ! {
         ..Default::default()
     };
 
-    cortex_m::interrupt::free(|cs| {
-        *OPER_QUEUE.borrow(cs).borrow_mut() = Some(OperQueue::new());
-    });
+    let opers = Lock::new(OperQueue::new());
 
     loop {
         clock.tick();
@@ -286,20 +283,28 @@ fn main() -> ! {
         if time_lapsed >= Time::from_secs(10) {
             // 2021-07-01 this is: 71_424_181
             //  rotary enc decel   52_566_664
-            info!("{} loop count: {}", time_lapsed, loop_count);
+            //  after locks etc:   11_904_273 ~0.84µS per loop
+            info!(
+                "{} loop count: {}, {:.02?}µS/loop",
+                time_lapsed,
+                loop_count,
+                10_000_000.0 / loop_count as f32
+            );
             start = now;
             loop_count = 0;
         }
 
         cortex_m::interrupt::free(|cs| {
-            let mut refmut = OPER_QUEUE.borrow(cs).borrow_mut();
-            let opers = refmut.as_mut().unwrap();
+            let mut opers = opers.get(cs);
 
             // Read all potential input and turn it into operations.
-            inputs.tick(now, opers);
+            inputs.tick(now, &mut opers);
+
+            // Current length of operations.
+            let len = opers.len();
 
             // Apply the operations to the state.
-            state.update(now, opers.drain(0..opers.len()));
+            state.update(now, opers.drain(0..len));
         });
 
         loop_count += 1;

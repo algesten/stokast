@@ -3,12 +3,8 @@
 use alg::clock::Time;
 use alg::gen::{Generated, Params, STOKAST_PARAMS};
 use arrayvec::ArrayVec;
-use core::cell::RefCell;
-use cortex_m::interrupt::Mutex;
 
 use crate::CPU_SPEED;
-
-pub static OPER_QUEUE: Mutex<RefCell<Option<OperQueue>>> = Mutex::new(RefCell::new(None));
 
 pub const TRACK_COUNT: usize = 4;
 
