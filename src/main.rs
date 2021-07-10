@@ -19,12 +19,14 @@ use crate::input::Inputs;
 use crate::input::PinDigitalIn;
 use crate::input::IO_EXT1;
 use crate::input::IO_EXT2;
+use crate::lock::Lock;
 use crate::max6958::Digit;
 use crate::state::OperQueue;
 use crate::state::State;
 use crate::state::OPER_QUEUE;
 
 mod input;
+mod lock;
 mod logging;
 mod max6958;
 mod mcp23s17;
@@ -75,27 +77,19 @@ fn main() -> ! {
         .set_clock_speed(bsp::hal::spi::ClockSpeed(5_000_000))
         .unwrap();
 
-    let spi_cs = GPIO::new(pins.p10);
-    let spi_cs = spi_cs.output();
-
     spi_io.set_mode(spi::MODE_0).unwrap();
     spi_io.clear_fifo();
 
-    let _io = mcp23s17::builder()
-        //
-        .input(0)
-        .enable_interrupt(mcp23s17::InterruptMode::CompareAgainstPrevious)
-        .done()
-        //
-        .input(1)
-        .enable_interrupt(mcp23s17::InterruptMode::CompareAgainstPrevious)
-        .done()
-        //
-        .input(2)
-        .enable_interrupt(mcp23s17::InterruptMode::CompareAgainstPrevious)
-        .done()
-        //
-        .build(spi_io, spi_cs)
+    let spi_lock = Lock::new(spi_io);
+
+    let spi_cs_ext1 = GPIO::new(pins.p9).output();
+    let spi_cs_ext2 = GPIO::new(pins.p10).output();
+
+    let _io_ext1 = mcp23s17::builder()
+        .build(spi_lock.clone(), spi_cs_ext1)
+        .unwrap();
+    let _io_ext2 = mcp23s17::builder()
+        .build(spi_lock.clone(), spi_cs_ext2)
         .unwrap();
 
     // let enc_inner = Encoder::new(pin_a, pin_b);

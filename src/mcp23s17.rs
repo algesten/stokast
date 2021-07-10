@@ -16,18 +16,23 @@
 
 use alg::SetBit;
 use bsp::hal::gpio::{Output, GPIO};
+use cortex_m::interrupt::CriticalSection;
 use embedded_hal::blocking::spi::{Transfer, Write};
 use embedded_hal::digital::v2::OutputPin;
 use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
+use crate::lock::Lock;
+
 pub struct Mcp23S17<I, P> {
-    spi: I,
+    spi_lock: Lock<I>,
     cs: GPIO<P, Output>,
 }
 
 pub fn builder() -> Builder {
     Builder {
+        // By default, all pins are configured as inputs.
+        dir: 0xffff,
         ..Default::default()
     }
 }
@@ -38,36 +43,37 @@ where
     I: Write<u16, Error = E>,
     P: Pin,
 {
-    fn configure(&mut self, params: Builder) -> Result<(), E> {
+    fn configure(&mut self, params: Builder, cs: &CriticalSection) -> Result<(), E> {
         // high when not active.
         self.cs.set_high().unwrap();
 
         // since we read all pins in one 16 bit read, we might as well have the
         // interrupt pins mirror each other.
-        self.transfer(address(true, 0x0a), 0b0100_0000_0100_0000)?;
+        self.transfer(address(true, 0x0a), 0b0100_0000_0100_0000, cs)?;
 
-        self.transfer(address(true, 0x00), params.dir)?;
-        self.transfer(address(true, 0x02), params.pol)?;
-        self.transfer(address(true, 0x04), params.int)?;
-        self.transfer(address(true, 0x06), params.def)?;
-        self.transfer(address(true, 0x08), params.con)?;
-        self.transfer(address(true, 0x0c), params.pul)?;
+        self.transfer(address(true, 0x00), params.dir, cs)?;
+        self.transfer(address(true, 0x02), params.pol, cs)?;
+        self.transfer(address(true, 0x04), params.int, cs)?;
+        self.transfer(address(true, 0x06), params.def, cs)?;
+        self.transfer(address(true, 0x08), params.con, cs)?;
+        self.transfer(address(true, 0x0c), params.pul, cs)?;
 
         Ok(())
     }
 
-    fn transfer(&mut self, addr: u16, value: u16) -> Result<u16, E> {
+    fn transfer(&mut self, addr: u16, value: u16, cs: &CriticalSection) -> Result<u16, E> {
         self.cs.set_low().unwrap();
 
         let mut buf = [addr, value];
-        self.spi.transfer(&mut buf)?;
+        let mut spi = self.spi_lock.get(cs);
+        spi.transfer(&mut buf)?;
 
         self.cs.set_high().unwrap();
         Ok(buf[1])
     }
 
-    pub fn read_inputs(&mut self) -> Result<u16, E> {
-        self.transfer(address(false, 0x12), 0)
+    pub fn read_inputs(&mut self, cs: &CriticalSection) -> Result<u16, E> {
+        self.transfer(address(false, 0x12), 0, cs)
     }
 }
 
@@ -98,15 +104,26 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub fn build<I, E, P>(self, spi: I, cs: GPIO<P, Output>) -> Result<Mcp23S17<I, P>, E>
+    pub fn build<I, E, P>(self, spi_lock: Lock<I>, cs: GPIO<P, Output>) -> Result<Mcp23S17<I, P>, E>
     where
         I: Transfer<u16, Error = E>,
         I: Write<u16, Error = E>,
         P: Pin,
     {
-        let mut m = Mcp23S17 { spi, cs };
-        m.configure(self)?;
+        let mut m = Mcp23S17 { spi_lock, cs };
+        cortex_m::interrupt::free(|cs| m.configure(self, cs))?;
+
         Ok(m)
+    }
+
+    /// Enable interrupts on all pins (currently) configured as inputs.
+    pub fn enable_all_interrupts(mut self, mode: InterruptMode) -> Self {
+        for pin in 0..15 {
+            if self.dir.is_bit(pin) {
+                self = self.input(pin).enable_interrupt(mode).done()
+            }
+        }
+        self
     }
 
     /// Configure an input pin. Pins are enumerated from 0. Where pin 0 is
