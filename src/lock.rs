@@ -25,7 +25,7 @@ enum Inner<T> {
 }
 
 impl<T> Lock<T> {
-    fn as_ptr(&self) -> *mut T {
+    pub fn as_ptr(&self) -> *mut T {
         match &self.inner {
             Inner::Instance(i) => &*i.as_ref() as *const T as *mut T,
             Inner::Pointer(p) => *p,
@@ -66,7 +66,10 @@ impl<T: Unpin> Lock<T> {
 
 impl<T> Lock<T> {
     /// Get the data for the duration of the critical section.
-    pub fn get<'c>(&self, _cs: &'c CriticalSection) -> LockGuard<'c, T> {
+    pub fn get<'a, 'c>(&'a self, _cs: &'c CriticalSection) -> LockGuard<'c, T>
+    where
+        'c: 'a,
+    {
         // If we are in a single-core environment, and we are running in a
         // a critical section, we know there will be no other mutable references
         // to this data. That's why it's safe to create this mutable reference

@@ -24,11 +24,13 @@ use teensy4_bsp as bsp;
 
 use crate::lock::Lock;
 
+/// 16-bit I/O expander.
 pub struct Mcp23S17<I, P> {
     spi_lock: Lock<I>,
     cs: GPIO<P, Output>,
 }
 
+/// Creates a builder used to configure the I/O expander.
 pub fn builder() -> Builder {
     Builder {
         // By default, all pins are configured as inputs.
@@ -72,6 +74,7 @@ where
         Ok(buf[1])
     }
 
+    /// Read the inputs. Data organization is: `[A7..A0, B7..B0]`
     pub fn read_inputs(&mut self, cs: &CriticalSection) -> Result<u16, E> {
         self.transfer(address(false, 0x12), 0, cs)
     }
