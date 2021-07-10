@@ -161,17 +161,18 @@ where
             }
         }
 
-        // All below this line is about io_ext chip changes. Early return if there are no changes.
-        if !io_ext_change {
-            return;
-        }
-
-        // Global seed
+        // Global seed.
+        // This must be above the io_ext_change line because of the accelerator.
         {
             let x = self.seed.tick(now);
             if x != 0 {
                 todo.push(Oper::Seed(x));
             }
+        }
+
+        // All below this line is about io_ext chip changes. Early return if there are no changes.
+        if !io_ext_change {
+            return;
         }
 
         // Global length

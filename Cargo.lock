@@ -5,6 +5,7 @@ name = "alg"
 version = "0.1.0"
 dependencies = [
  "gcd",
+ "log",
 ]
 
 [[package]]

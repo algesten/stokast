@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use alg::clock::Time;
-use alg::gen::{Generated, Params, STOKAST_PARAMS};
+use alg::gen::{Generated, Params, SEED_BASE, STOKAST_PARAMS};
 use arrayvec::ArrayVec;
 
 use crate::CPU_SPEED;
@@ -50,9 +50,7 @@ impl Default for Display {
 
 pub type OperQueue = ArrayVec<Oper, 64>;
 
-/// Base for seed since starting at 0 is so boring.
-const SEED_BASE: i32 = 0x616c67;
-
+#[derive(Debug)]
 /// The operations that can be done on the state.
 pub enum Oper {
     Tick,
@@ -73,10 +71,14 @@ impl State {
     }
 
     pub fn update(&mut self, now: Time<{ CPU_SPEED }>, todo: impl Iterator<Item = Oper>) {
+        let mut change = false;
         let mut regenerate = false;
         let mut display = None;
 
         for oper in todo {
+            change = true;
+            info!("Handle: {:?}", oper);
+
             match oper {
                 Oper::Tick => {
                     self.play_head = if self.next_is_reset {
@@ -102,7 +104,7 @@ impl State {
 
                 //
                 Oper::Seed(x) => {
-                    let s = self.params.seed as i32 - SEED_BASE;
+                    let s = (self.params.seed - SEED_BASE as u32) as i32;
                     let n = s + x as i32;
                     // Seed is 0-9999
                     if n >= 0 && n <= 9999 {
@@ -138,6 +140,11 @@ impl State {
         if let Some(d) = display {
             self.display = d;
             self.display_last_update = now;
+            change = true;
+        }
+
+        if change {
+            info!("State: {:#?}", self);
         }
     }
 }

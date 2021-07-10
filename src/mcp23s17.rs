@@ -104,13 +104,13 @@ where
         let mut buf = [addr, value];
         let mut spi = self.spi_lock.get(cs);
 
-        debug!("spi transfer out: {:0x?}", buf);
+        trace!("spi transfer out: {:0x?}", buf);
 
         self.cs.set_low().unwrap();
         spi.transfer(&mut buf)?;
         self.cs.set_high().unwrap();
 
-        debug!("spi transfer in: {:0x?}", buf[1]);
+        trace!("spi transfer in: {:0x?}", buf[1]);
 
         Ok(buf[1])
     }

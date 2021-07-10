@@ -8,6 +8,7 @@ use alg::clock::Clock;
 use alg::clock::Time;
 use alg::encoder::BitmaskQuadratureSource;
 use alg::encoder::Encoder;
+use alg::encoder::EncoderAccelerator;
 use alg::input::{BitmaskDigitalInput, DigitalEdgeInput};
 use bsp::hal::ccm;
 use cortex_m::peripheral::DWT;
@@ -160,11 +161,11 @@ fn main() -> ! {
 
         // ext1 b0 - pin_a
         // ext1 b1 - pin_b
-        seed: Encoder::new(BitmaskQuadratureSource::new(
+        seed: EncoderAccelerator::new(Encoder::new(BitmaskQuadratureSource::new(
             io_ext1_read.as_ptr(),
             0b0000_0000_0000_0001,
             0b0000_0000_0000_0010,
-        )),
+        ))),
         // ext1 a2
         seed_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_0100_0000_0000),
@@ -288,9 +289,7 @@ fn main() -> ! {
     let mut start = clock.now();
     let mut loop_count = 0_u32;
 
-    let mut state = State {
-        ..Default::default()
-    };
+    let mut state = State::new();
 
     let opers = Lock::new(OperQueue::new());
 
@@ -330,10 +329,11 @@ fn main() -> ! {
                     let x = !io_ext1.read_inputs(cs).unwrap();
                     let mut read = io_ext1_read.get(cs);
 
-                    info!("ext1 reading cap: {:016b}", x);
-
-                    *read = x;
-                    io_ext_change = true;
+                    if x != *read {
+                        info!("ext1 reading cap: {:016b}", x);
+                        *read = x;
+                        io_ext_change = true;
+                    }
                 }
 
                 // interrupt for io_ext2 has fired
@@ -343,10 +343,11 @@ fn main() -> ! {
                     let x = !io_ext2.read_inputs(cs).unwrap();
                     let mut read = io_ext2_read.get(cs);
 
-                    info!("ext2 reading: {:016b}", x);
-
-                    *read = x;
-                    io_ext_change = true;
+                    if x != *read {
+                        info!("ext2 reading: {:016b}", x);
+                        *read = x;
+                        io_ext_change = true;
+                    }
                 }
             }
 
