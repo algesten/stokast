@@ -142,7 +142,7 @@ where
     RStep4: DeltaInput<{ CPU_SPEED }>,
     RStep4Btn: EdgeInput<{ CPU_SPEED }>,
 {
-    pub fn tick(&mut self, now: Time<{ CPU_SPEED }>, todo: &mut OperQueue) {
+    pub fn tick(&mut self, now: Time<{ CPU_SPEED }>, todo: &mut OperQueue, io_ext_change: bool) {
         // Clock input
         {
             let x = self.clock.tick(now);
@@ -159,6 +159,11 @@ where
             if let Some(Edge::Falling(_)) = x {
                 todo.push(Oper::Reset);
             }
+        }
+
+        // All below this line is about io_ext chip changes. Early return if there are no changes.
+        if !io_ext_change {
+            return;
         }
 
         // Global seed

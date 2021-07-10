@@ -304,6 +304,7 @@ fn main() -> ! {
             // 2021-07-01 this is: 71_424_181
             //  rotary enc decel   52_566_664
             //  after locks etc:   11_904_273 ~0.84µS per loop
+            //  io_ext_change:     20_832_340 ~0.48µS
             info!(
                 "{} loop count: {}, {:.02?}µS/loop",
                 time_lapsed,
@@ -315,6 +316,10 @@ fn main() -> ! {
         }
 
         cortex_m::interrupt::free(|cs| {
+            // set to true if we really have an io_ext change. that way
+            // we can avoid a gazillion tick() in inputs.tick().
+            let mut io_ext_change = false;
+
             {
                 let mut flags = io_ext_flags.get(cs);
 
@@ -328,6 +333,7 @@ fn main() -> ! {
                     info!("ext1 reading cap: {:016b}", x);
 
                     *read = x;
+                    io_ext_change = true;
                 }
 
                 // interrupt for io_ext2 has fired
@@ -340,13 +346,14 @@ fn main() -> ! {
                     info!("ext2 reading: {:016b}", x);
 
                     *read = x;
+                    io_ext_change = true;
                 }
             }
 
             let mut opers = opers.get(cs);
 
             // Read all potential input and turn it into operations.
-            inputs.tick(now, &mut opers);
+            inputs.tick(now, &mut opers, io_ext_change);
 
             // Current length of operations.
             let len = opers.len();
