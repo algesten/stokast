@@ -52,15 +52,16 @@ fn main() -> ! {
     let mut clock = Clock::<_, CPU_SPEED>::new(DWT::get_cycle_count);
 
     // Wait so we don't miss the first log message, crashes etc.
-    systick.delay(1000);
+    systick.delay(3000);
 
     let pins = bsp::t40::into_pins(p.iomuxc);
 
     let pin_clk = GPIO::new(pins.p3);
     let pin_rst = GPIO::new(pins.p4);
 
-    let pin7 = GPIO::new(pins.p7);
-    let pin8 = GPIO::new(pins.p8);
+    // Interrupt pints for ext1 and ext2
+    let ext1_irq = GPIO::new(pins.p7);
+    let ext2_irq = GPIO::new(pins.p8);
 
     // 1.6E-5
     // 16µS
@@ -88,11 +89,20 @@ fn main() -> ! {
 
     let mut io_ext1 = mcp23s17::builder()
         .enable_all_interrupts(mcp23s17::InterruptMode::CompareAgainstPrevious)
+        .set_all_pull_up(true)
         .build(spi_lock.clone(), spi_cs_ext1)
         .unwrap();
     let mut io_ext2 = mcp23s17::builder()
+        .enable_all_interrupts(mcp23s17::InterruptMode::CompareAgainstPrevious)
+        .set_all_pull_up(true)
         .build(spi_lock.clone(), spi_cs_ext2)
         .unwrap();
+
+    cortex_m::interrupt::free(|cs| {
+        io_ext1.verify_config(cs).unwrap();
+        // spuriously read the interrupt capture to clear it out
+        io_ext1.read_int_cap(cs).unwrap();
+    });
 
     // Flags to indicate that an interrupt has fired that means we are to
     // read io_ext1 or io_ext2 respectively.
@@ -102,7 +112,7 @@ fn main() -> ! {
     let io_ext1_read = Lock::new(0_u16);
     let io_ext2_read = Lock::new(0_u16);
 
-    setup_gpio_interrupts(pin7, pin8, io_ext_flags.clone());
+    setup_gpio_interrupts(ext1_irq, ext2_irq, io_ext_flags.clone());
 
     // How to configure an ADC
     // let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
@@ -312,8 +322,10 @@ fn main() -> ! {
                 if flags.0 {
                     flags.0 = false;
 
-                    let x = io_ext1.read_inputs(cs).unwrap();
+                    let x = !io_ext1.read_inputs(cs).unwrap();
                     let mut read = io_ext1_read.get(cs);
+
+                    info!("ext1 reading cap: {:016b}", x);
 
                     *read = x;
                 }
@@ -322,8 +334,10 @@ fn main() -> ! {
                 if flags.1 {
                     flags.1 = false;
 
-                    let x = io_ext2.read_inputs(cs).unwrap();
+                    let x = !io_ext2.read_inputs(cs).unwrap();
                     let mut read = io_ext2_read.get(cs);
+
+                    info!("ext2 reading: {:016b}", x);
 
                     *read = x;
                 }
@@ -389,10 +403,14 @@ pub fn setup_gpio_interrupts(
     }
 
     cortex_m::interrupt::free(|_cs| {
+        info!("setup GPIO interrupts");
+
         pin1.set_interrupt_configuration(InterruptConfiguration::RisingEdge);
         pin1.set_interrupt_enable(true);
+        pin1.clear_interrupt_status();
         pin2.set_interrupt_configuration(InterruptConfiguration::RisingEdge);
         pin2.set_interrupt_enable(true);
+        pin2.clear_interrupt_status();
 
         unsafe {
             INT = Some((pin1, pin2, io_ext_flags));

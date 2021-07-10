@@ -28,6 +28,7 @@ use crate::lock::Lock;
 pub struct Mcp23S17<I, P> {
     spi_lock: Lock<I>,
     cs: GPIO<P, Output>,
+    params: Builder,
 }
 
 /// Creates a builder used to configure the I/O expander.
@@ -49,9 +50,13 @@ where
         // high when not active.
         self.cs.set_high().unwrap();
 
+        debug!("configure mcp23s17");
+
         // since we read all pins in one 16 bit read, we might as well have the
         // interrupt pins mirror each other.
-        self.transfer(address(true, 0x0a), 0b0100_0000_0100_0000, cs)?;
+        //
+        // also set interrupt high. because... why would it be inverted.
+        self.transfer(address(true, 0x0a), 0b0100_0010_0100_0010, cs)?;
 
         self.transfer(address(true, 0x00), params.dir, cs)?;
         self.transfer(address(true, 0x02), params.pol, cs)?;
@@ -63,20 +68,61 @@ where
         Ok(())
     }
 
-    fn transfer(&mut self, addr: u16, value: u16, cs: &CriticalSection) -> Result<u16, E> {
-        self.cs.set_low().unwrap();
+    pub fn verify_config(&mut self, cs: &CriticalSection) -> Result<(), E> {
+        let x = self.transfer(address(false, 0x0a), 0, cs)?;
+        assert_eq!(x, 0b0100_0010_0100_0010, "Mirror and INTPOL");
 
+        let x = self.transfer(address(false, 0x00), 0, cs)?;
+        if x != self.params.dir {
+            error!("Incorrect direction: {:0x?}", x);
+        }
+        let x = self.transfer(address(false, 0x02), 0, cs)?;
+        if x != self.params.pol {
+            error!("Incorrect polarity: {:0x?}", x);
+        }
+        let x = self.transfer(address(false, 0x04), 0, cs)?;
+        if x != self.params.int {
+            error!("Incorrect interrupt: {:0x?}", x);
+        }
+        let x = self.transfer(address(false, 0x06), 0, cs)?;
+        if x != self.params.def {
+            error!("Incorrect default value: {:0x?}", x);
+        }
+        let x = self.transfer(address(false, 0x08), 0, cs)?;
+        if x != self.params.con {
+            error!("Incorrect config: {:0x?}", x);
+        }
+        let x = self.transfer(address(false, 0x0c), 0, cs)?;
+        if x != self.params.con {
+            error!("Incorrect pull-up: {:0x?}", x);
+        }
+
+        Ok(())
+    }
+
+    fn transfer(&mut self, addr: u16, value: u16, cs: &CriticalSection) -> Result<u16, E> {
         let mut buf = [addr, value];
         let mut spi = self.spi_lock.get(cs);
-        spi.transfer(&mut buf)?;
 
+        debug!("spi transfer out: {:0x?}", buf);
+
+        self.cs.set_low().unwrap();
+        spi.transfer(&mut buf)?;
         self.cs.set_high().unwrap();
+
+        debug!("spi transfer in: {:0x?}", buf[1]);
+
         Ok(buf[1])
     }
 
     /// Read the inputs. Data organization is: `[A7..A0, B7..B0]`
     pub fn read_inputs(&mut self, cs: &CriticalSection) -> Result<u16, E> {
         self.transfer(address(false, 0x12), 0, cs)
+    }
+
+    /// Read the interrupt capture. Data organization is: `[A7..A0, B7..B0]`
+    pub fn read_int_cap(&mut self, cs: &CriticalSection) -> Result<u16, E> {
+        self.transfer(address(false, 0x10), 0, cs)
     }
 }
 
@@ -86,7 +132,7 @@ fn address(write: bool, addr: u8) -> u16 {
     0b_0100_0000_0000_0000 | if write { 0 } else { 1 << 8 } | (addr as u16)
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Builder {
     /// Direction, 0 = output, 1 = input.
     /// Defaults to inputs.
@@ -113,7 +159,11 @@ impl Builder {
         I: Write<u16, Error = E>,
         P: Pin,
     {
-        let mut m = Mcp23S17 { spi_lock, cs };
+        let mut m = Mcp23S17 {
+            spi_lock,
+            cs,
+            params: self.clone(),
+        };
         cortex_m::interrupt::free(|cs| m.configure(self, cs))?;
 
         Ok(m)
@@ -121,9 +171,18 @@ impl Builder {
 
     /// Enable interrupts on all pins (currently) configured as inputs.
     pub fn enable_all_interrupts(mut self, mode: InterruptMode) -> Self {
-        for pin in 0..15 {
+        for pin in 0..=15 {
             if self.dir.is_bit(pin) {
                 self = self.input(pin).enable_interrupt(mode).done()
+            }
+        }
+        self
+    }
+
+    pub fn set_all_pull_up(mut self, on: bool) -> Self {
+        for pin in 0..=15 {
+            if self.dir.is_bit(pin) {
+                self = self.input(pin).pull_up(on).done()
             }
         }
         self

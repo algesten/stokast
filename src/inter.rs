@@ -92,7 +92,6 @@ where
                 });
                 // TODO is it ok to assume the numeric value of the enum is the icr?
                 let icr = interrupt_configuration as u32;
-                info!("icr is: {:?}", icr);
                 let icr_offset = (<P as Pin>::Offset::USIZE % 16) * 2;
                 let icr_modify = |reg| reg & !(0b11 << icr_offset) | (icr << icr_offset);
                 if <P as Pin>::Offset::USIZE < 16 {

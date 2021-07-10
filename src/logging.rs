@@ -29,7 +29,7 @@ pub fn init() -> Result<bsp::usb::Reader, bsp::usb::Error> {
         inst,
         bsp::usb::LoggingConfig {
             filters: FILTERS,
-            max_level: LevelFilter::Info,
+            max_level: LevelFilter::Debug,
             ..Default::default()
         },
     )
