@@ -291,6 +291,7 @@ dependencies = [
  "cortex-m-rt",
  "embedded-hal",
  "imxrt-hal",
+ "imxrt-ral",
  "log",
  "teensy4-bsp",
 ]

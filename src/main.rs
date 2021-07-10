@@ -23,6 +23,7 @@ use crate::state::OperQueue;
 use crate::state::State;
 
 mod input;
+mod inter;
 mod lock;
 mod logging;
 mod max6958;
@@ -58,6 +59,9 @@ fn main() -> ! {
     let pin_clk = GPIO::new(pins.p3);
     let pin_rst = GPIO::new(pins.p4);
 
+    let pin7 = GPIO::new(pins.p7);
+    let pin8 = GPIO::new(pins.p8);
+
     // 1.6E-5
     // 16µS
 
@@ -80,19 +84,25 @@ fn main() -> ! {
     let spi_lock = Lock::new(spi_io);
 
     let spi_cs_ext1 = GPIO::new(pins.p9).output();
-    // let spi_cs_ext2 = GPIO::new(pins.p10).output();
+    let spi_cs_ext2 = GPIO::new(pins.p10).output();
 
-    let _io_ext1 = mcp23s17::builder()
+    let mut io_ext1 = mcp23s17::builder()
         .enable_all_interrupts(mcp23s17::InterruptMode::CompareAgainstPrevious)
         .build(spi_lock.clone(), spi_cs_ext1)
         .unwrap();
-    // let _io_ext2 = mcp23s17::builder()
-    //     .build(spi_lock.clone(), spi_cs_ext2)
-    //     .unwrap();
+    let mut io_ext2 = mcp23s17::builder()
+        .build(spi_lock.clone(), spi_cs_ext2)
+        .unwrap();
+
+    // Flags to indicate that an interrupt has fired that means we are to
+    // read io_ext1 or io_ext2 respectively.
+    let io_ext_flags = Lock::new((false, false));
 
     // Holders of the last reading of the io ext.
     let io_ext1_read = Lock::new(0_u16);
     let io_ext2_read = Lock::new(0_u16);
+
+    setup_gpio_interrupts(pin7, pin8, io_ext_flags.clone());
 
     // How to configure an ADC
     // let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
@@ -295,6 +305,30 @@ fn main() -> ! {
         }
 
         cortex_m::interrupt::free(|cs| {
+            {
+                let mut flags = io_ext_flags.get(cs);
+
+                // interrupt for io_ext1 has fired
+                if flags.0 {
+                    flags.0 = false;
+
+                    let x = io_ext1.read_inputs(cs).unwrap();
+                    let mut read = io_ext1_read.get(cs);
+
+                    *read = x;
+                }
+
+                // interrupt for io_ext2 has fired
+                if flags.1 {
+                    flags.1 = false;
+
+                    let x = io_ext2.read_inputs(cs).unwrap();
+                    let mut read = io_ext2_read.get(cs);
+
+                    *read = x;
+                }
+            }
+
             let mut opers = opers.get(cs);
 
             // Read all potential input and turn it into operations.
@@ -315,4 +349,56 @@ fn main() -> ! {
 fn panic(p: &core::panic::PanicInfo) -> ! {
     error!("{:?}", p);
     loop {}
+}
+
+use crate::inter::InterruptConfiguration;
+use bsp::interrupt;
+use imxrt_hal::gpio::Input;
+
+// B1_01 - GPIO2_IO17 - ALT5
+type IoExt1InterruptPin = GPIO<bsp::common::P7, Input>;
+// B1_00 - GPIO2_IO16 - ALT5
+type IoExt2InterruptPin = GPIO<bsp::common::P8, Input>;
+
+pub fn setup_gpio_interrupts(
+    mut pin1: IoExt1InterruptPin,
+    mut pin2: IoExt2InterruptPin,
+    io_ext_flags: Lock<(bool, bool)>,
+) {
+    use crate::inter::Interrupt;
+
+    static mut INT: Option<(IoExt1InterruptPin, IoExt2InterruptPin, Lock<(bool, bool)>)> = None;
+
+    #[cortex_m_rt::interrupt]
+    fn GPIO2_Combined_16_31() {
+        cortex_m::interrupt::free(|cs| {
+            let (pin1, pin2, flags) = unsafe { INT.as_mut().unwrap() };
+
+            let mut flags = flags.get(cs);
+
+            if pin1.is_interrupt_status() {
+                pin1.clear_interrupt_status();
+                flags.0 = true;
+            }
+
+            if pin2.is_interrupt_status() {
+                pin2.clear_interrupt_status();
+                flags.1 = true;
+            }
+        });
+    }
+
+    cortex_m::interrupt::free(|_cs| {
+        pin1.set_interrupt_configuration(InterruptConfiguration::RisingEdge);
+        pin1.set_interrupt_enable(true);
+        pin2.set_interrupt_configuration(InterruptConfiguration::RisingEdge);
+        pin2.set_interrupt_enable(true);
+
+        unsafe {
+            INT = Some((pin1, pin2, io_ext_flags));
+        }
+
+        // It just so happens that both pins map to the same interrupt.
+        unsafe { cortex_m::peripheral::NVIC::unmask(bsp::interrupt::GPIO2_Combined_16_31) };
+    });
 }
