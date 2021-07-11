@@ -61,8 +61,8 @@ fn main() -> ! {
     let pin_rst = GPIO::new(pins.p4);
 
     // Interrupt pints for ext1 and ext2
-    let ext1_irq = GPIO::new(pins.p7);
-    let ext2_irq = GPIO::new(pins.p8);
+    let ext1_irq = GPIO::new(pins.p8);
+    let ext2_irq = GPIO::new(pins.p7);
 
     // 1.6E-5
     // 16µS
@@ -85,8 +85,8 @@ fn main() -> ! {
 
     let spi_lock = Lock::new(spi_io);
 
-    let spi_cs_ext1 = GPIO::new(pins.p9).output();
-    let spi_cs_ext2 = GPIO::new(pins.p10).output();
+    let spi_cs_ext1 = GPIO::new(pins.p10).output();
+    let spi_cs_ext2 = GPIO::new(pins.p9).output();
 
     let mut io_ext1 = mcp23s17::builder()
         .enable_all_interrupts(mcp23s17::InterruptMode::CompareAgainstPrevious)
@@ -159,129 +159,129 @@ fn main() -> ! {
         /// Reset signal in. Inverted.
         reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst), true),
 
-        // ext1 b0 - pin_a
-        // ext1 b1 - pin_b
+        // ext1 b4 - pin_a
+        // ext1 a3 - pin_b
         seed: EncoderAccelerator::new(Encoder::new(BitmaskQuadratureSource::new(
             io_ext1_read.as_ptr(),
-            0b0000_0000_0000_0001,
-            0b0000_0000_0000_0010,
-        ))),
-        // ext1 a2
-        seed_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_0100_0000_0000),
-            false,
-        ),
-
-        // ext2 b0 - pin_a
-        // ext2 b1 - pin_b
-        length: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
-            0b0000_0000_0000_0001,
-            0b0000_0000_0000_0010,
-        )),
-        // ext2 a2
-        length_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0000_0100_0000_0000),
-            false,
-        ),
-
-        // ext1 b2 - pin_a
-        // ext1 b3 - pin_b
-        offs1: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
-            0b0000_0000_0000_0100,
-            0b0000_0000_0000_1000,
-        )),
-        // ext1 a3
-        offs1_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_1000_0000_0000),
-            false,
-        ),
-        // ext b4 - pin_a
-        // ext b5 - pin_b
-        step1: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
             0b0000_0000_0001_0000,
-            0b0000_0000_0010_0000,
-        )),
-        // ext a4
-        step1_btn: DigitalEdgeInput::new(
+            0b0000_1000_0000_0000,
+        ))),
+        // ext1 a4
+        seed_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0001_0000_0000_0000),
             false,
         ),
 
-        // ext1 b6 - pin_a
-        // ext1 b7 - pin_b
-        offs2: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
-            0b0000_0000_0100_0000,
-            0b0000_0000_1000_0000,
+        // ext2 b1 - pin_a
+        // ext2 b0 - pin_b
+        length: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2_read.as_ptr(),
+            0b0000_0000_0000_0010,
+            0b0000_0000_0000_0001,
         )),
-        // ext1 a5
-        offs2_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0010_0000_0000_0000),
-            false,
-        ),
-        // ext1 a0 - pin_a
-        // ext1 a1 - pin_b
-        step2: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
-            0b0000_0001_0000_0000,
-            0b0000_0010_0000_0000,
-        )),
-        // ext1 a6
-        step2_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0100_0000_0000_0000),
+        // ext2 b2
+        length_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0000_0000_0000_0100),
             false,
         ),
 
-        // ext2 b2 - pin_a
-        // ext2 b3 - pin_b
-        offs3: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
-            0b0000_0000_0000_0100,
-            0b0000_0000_0000_1000,
-        )),
-        // ext2 a3
-        offs3_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0000_1000_0000_0000),
-            false,
-        ),
-        // ext2 b4 - pin_a
-        // ext2 b5 - pin_b
-        step3: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
-            0b0000_0000_0001_0000,
+        // ext1 a1 - pin_a
+        // ext1 b5 - pin_b
+        offs1: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1_read.as_ptr(),
+            0b0000_0010_0000_0000,
             0b0000_0000_0010_0000,
         )),
-        // ext2 a4
+        // ext1 a2
+        offs1_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_0100_0000_0000),
+            false,
+        ),
+        // ext1 b7 - pin_a
+        // ext1 a0 - pin_b
+        step1: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1_read.as_ptr(),
+            0b0000_0000_1000_0000,
+            0b0000_0000_0000_0001,
+        )),
+        // ext1 b6
+        step1_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_0000_0100_0000),
+            false,
+        ),
+
+        // ext1 b2 - pin_a
+        // ext1 b0 - pin_b
+        offs2: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1_read.as_ptr(),
+            0b0000_0000_0000_0100,
+            0b0000_0000_0000_0001,
+        )),
+        // ext1 b1
+        offs2_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_0000_0000_0010),
+            false,
+        ),
+        // ext1 a5 - pin_a
+        // ext1 a6 - pin_b
+        step2: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext1_read.as_ptr(),
+            0b0010_0000_0000_0000,
+            0b0100_0000_0000_0000,
+        )),
+        // ext1 a7
+        step2_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b1000_0000_0000_0000),
+            false,
+        ),
+
+        // ext2 b5 - pin_a
+        // ext2 b4 - pin_b
+        offs3: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2_read.as_ptr(),
+            0b0000_0000_0010_0000,
+            0b0000_0000_0001_0000,
+        )),
+        // ext2 a1
+        offs3_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0000_0010_0000_0000),
+            false,
+        ),
+        // ext2 b7 - pin_a
+        // ext2 b6 - pin_b
+        step3: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2_read.as_ptr(),
+            0b0000_0000_1000_0000,
+            0b0000_0000_0100_0000,
+        )),
+        // ext2 a0
         step3_btn: DigitalEdgeInput::new(
+            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0000_0001_0000_0000),
+            false,
+        ),
+
+        // ext2 a2 - pin_a
+        // ext2 a3 - pin_b
+        offs4: Encoder::new(BitmaskQuadratureSource::new(
+            io_ext2_read.as_ptr(),
+            0b0000_0100_0000_0000,
+            0b0000_1000_0000_0000,
+        )),
+        // ext2 a4
+        offs4_btn: DigitalEdgeInput::new(
             BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0001_0000_0000_0000),
             false,
         ),
-
-        // ext2 b6 - pin_a
-        // ext2 b7 - pin_b
-        offs4: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
-            0b0000_0000_0100_0000,
-            0b0000_0000_1000_0000,
-        )),
-        // ext2 a5
-        offs4_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0010_0000_0000_0000),
-            false,
-        ),
-        // ext2 a0 - pin_a
-        // ext2 a1 - pin_b
+        // ext2 a5 - pin_a
+        // ext2 a6 - pin_b
         step4: Encoder::new(BitmaskQuadratureSource::new(
             io_ext2_read.as_ptr(),
-            0b0000_0001_0000_0000,
-            0b0000_0010_0000_0000,
+            0b0010_0000_0000_0000,
+            0b0100_0000_0000_0000,
         )),
-        // ext2 a6
+        // ext2 a7
         step4_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0100_0000_0000_0000),
+            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b1000_0000_0000_0000),
             false,
         ),
     };
@@ -378,9 +378,9 @@ use bsp::interrupt;
 use imxrt_hal::gpio::Input;
 
 // B1_01 - GPIO2_IO17 - ALT5
-type IoExt1InterruptPin = GPIO<bsp::common::P7, Input>;
+type IoExt1InterruptPin = GPIO<bsp::common::P8, Input>;
 // B1_00 - GPIO2_IO16 - ALT5
-type IoExt2InterruptPin = GPIO<bsp::common::P8, Input>;
+type IoExt2InterruptPin = GPIO<bsp::common::P7, Input>;
 
 pub fn setup_gpio_interrupts(
     mut pin1: IoExt1InterruptPin,
