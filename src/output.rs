@@ -30,10 +30,14 @@ where
             if play_head != self.play_head_last {
                 self.play_head_last = play_head;
 
-                let g1 = state.generated.patterns[0][play_head].into();
-                let g2 = state.generated.patterns[1][play_head].into();
-                let g3 = state.generated.patterns[2][play_head].into();
-                let g4 = state.generated.patterns[3][play_head].into();
+                let parm = &state.params;
+                let pats = &state.generated.patterns;
+                let plen = parm.pattern_length as usize;
+
+                let g1 = pats[0][play_head % plen.min(parm.tracks[0].length as usize)].into();
+                let g2 = pats[1][play_head % plen.min(parm.tracks[1].length as usize)].into();
+                let g3 = pats[2][play_head % plen.min(parm.tracks[2].length as usize)].into();
+                let g4 = pats[3][play_head % plen.min(parm.tracks[3].length as usize)].into();
 
                 (g1, g2, g3, g4)
             } else {
