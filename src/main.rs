@@ -392,8 +392,10 @@ fn main() -> ! {
             // Current length of operations.
             let len = opers.len();
 
-            // Apply the operations to the state.
-            state.update(now, opers.drain(0..len));
+            if len > 0 {
+                // Apply the operations to the state.
+                state.update(now, opers.drain(0..len));
+            }
         });
 
         outputs.tick(now, &state);
