@@ -129,24 +129,32 @@ fn main() -> ! {
     );
 
     // The return of "builder.build()" is a configured I2C master running at 100KHz.
-    let mut i2c1 = i2c1_builder.build(pins.p19, pins.p18);
+    let mut i2c = i2c1_builder.build(pins.p19, pins.p18);
 
     // From datasheet MAX6958, serial max speed is 400KHz
-    i2c1.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz400)
+    i2c.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz400)
         .unwrap();
 
     // let mut rnd = Rnd::new(1);
+    let i2c_lock = Lock::new(i2c);
 
-    let mut seg = max6958::Max6958::new(i2c1, max6958::Variant::A);
-    seg.set_shutdown(false).unwrap();
+    let mut seg = max6958::Max6958::new(i2c_lock.clone(), max6958::Variant::A);
 
-    // driver.set_decode_mode(&[Digit::Digit0]).unwrap();
-    // At intensity 40 + scan limit 0123, we get 2mA per led segment.
-    // 8 segments * 2mA x 4 chars = 64mA for the display.
-    seg.set_scan_limit(max6958::ScanLimit::Digit0123).unwrap();
-    seg.set_intensity(40).unwrap();
-    seg.set_decode_mode(&[Digit::Digit0, Digit::Digit1, Digit::Digit2, Digit::Digit3])
+    cortex_m::interrupt::free(|cs| {
+        seg.set_shutdown(false, cs).unwrap();
+
+        // driver.set_decode_mode(&[Digit::Digit0]).unwrap();
+        // At intensity 40 + scan limit 0123, we get 2mA per led segment.
+        // 8 segments * 2mA x 4 chars = 64mA for the display.
+        seg.set_scan_limit(max6958::ScanLimit::Digit0123, cs)
+            .unwrap();
+        seg.set_intensity(40, cs).unwrap();
+        seg.set_decode_mode(
+            &[Digit::Digit0, Digit::Digit1, Digit::Digit2, Digit::Digit3],
+            cs,
+        )
         .unwrap();
+    });
 
     info!("Sure!");
 
