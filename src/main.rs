@@ -20,6 +20,8 @@ use crate::input::Inputs;
 use crate::input::PinDigitalIn;
 use crate::lock::Lock;
 use crate::max6958::Digit;
+use crate::output::Gate;
+use crate::output::Outputs;
 use crate::state::OperQueue;
 use crate::state::State;
 
@@ -29,6 +31,7 @@ mod lock;
 mod logging;
 mod max6958;
 mod mcp23s17;
+mod output;
 mod state;
 
 pub const CPU_SPEED: u32 = ccm::PLL1::ARM_HZ;
@@ -57,8 +60,13 @@ fn main() -> ! {
 
     let pins = bsp::t40::into_pins(p.iomuxc);
 
-    let pin_clk = GPIO::new(pins.p3);
-    let pin_rst = GPIO::new(pins.p4);
+    let pin_gate1 = GPIO::new(pins.p0).output();
+    let pin_gate2 = GPIO::new(pins.p1).output();
+    let pin_gate3 = GPIO::new(pins.p2).output();
+    let pin_gate4 = GPIO::new(pins.p3).output();
+
+    let pin_clk = GPIO::new(pins.p20);
+    let pin_rst = GPIO::new(pins.p21);
 
     // Interrupt pints for ext1 and ext2
     let ext1_irq = GPIO::new(pins.p8);
@@ -297,6 +305,14 @@ fn main() -> ! {
         ),
     };
 
+    let mut outputs = Outputs {
+        play_head_last: 0,
+        gate1: Gate::new(pin_gate1, 50),
+        gate2: Gate::new(pin_gate2, 50),
+        gate3: Gate::new(pin_gate3, 50),
+        gate4: Gate::new(pin_gate4, 50),
+    };
+
     let mut start = clock.now();
     let mut loop_count = 0_u32;
 
@@ -379,6 +395,8 @@ fn main() -> ! {
             // Apply the operations to the state.
             state.update(now, opers.drain(0..len));
         });
+
+        outputs.tick(now, &state);
 
         loop_count += 1;
     }
