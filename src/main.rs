@@ -154,9 +154,12 @@ fn main() -> ! {
     // [A7, A6, A5, A4,   A3, A2, A1, A0,   B7, B6, B5, B4,   B3, B2, B1, B0]
 
     let mut inputs = Inputs {
-        /// Clock signal in. Inverted.
+        // Clock signal in. Inverted.
         clock: DigitalEdgeInput::new(PinDigitalIn(pin_clk), true),
-        /// Reset signal in. Inverted.
+        // Last tick, since we want intervals.
+        clock_last: None,
+
+        // Reset signal in. Inverted.
         reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst), true),
 
         // ext1 b4 - pin_a
@@ -304,6 +307,12 @@ fn main() -> ! {
             //  rotary enc decel   52_566_664
             //  after locks etc:   11_904_273 ~0.84µS per loop
             //  io_ext_change:     20_832_340 ~0.48µS
+            //
+            // We know a reset happens roughly 800ns before the
+            // next clock pulse.
+            //
+            // ----+---------------_----------+---->
+            //     |               |   800ns  |
             info!(
                 "{} loop count: {}, {:.02?}µS/loop",
                 time_lapsed,

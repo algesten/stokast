@@ -41,6 +41,7 @@ pub struct Inputs<
     RStep4Btn,
 > {
     pub clock: Digi1,
+    pub clock_last: Option<Time<{ CPU_SPEED }>>,
     pub reset: Digi2,
 
     pub seed: RSeed,
@@ -143,16 +144,10 @@ where
     RStep4Btn: EdgeInput<{ CPU_SPEED }>,
 {
     pub fn tick(&mut self, now: Time<{ CPU_SPEED }>, todo: &mut OperQueue, io_ext_change: bool) {
-        // Clock input
-        {
-            let x = self.clock.tick(now);
-            // falling since inverted
-            if let Some(Edge::Falling(_)) = x {
-                todo.push(Oper::Tick);
-            }
-        }
-
         // Reset input
+        // Deliberately read reset before clock, since if we for some reason end up
+        // reading both reset and clock in the same cycle, we must handle the reset
+        // before the clock pulse.
         {
             let x = self.reset.tick(now);
             // falling since inverted
@@ -161,6 +156,18 @@ where
             }
         }
 
+        // Clock input
+        {
+            let x = self.clock.tick(now);
+            // falling since inverted
+            if let Some(Edge::Falling(tick)) = x {
+                if let Some(last) = self.clock_last {
+                    let interval = tick - last;
+                    todo.push(Oper::Tick(interval));
+                }
+                self.clock_last = Some(tick);
+            }
+        }
         // Global seed.
         // This must be above the io_ext_change line because of the accelerator.
         {

@@ -2,6 +2,7 @@
 
 use alg::clock::Time;
 use alg::gen::{Generated, Params, SEED_BASE, STOKAST_PARAMS};
+use alg::tempo::Tempo;
 use arrayvec::ArrayVec;
 
 use crate::CPU_SPEED;
@@ -29,6 +30,12 @@ pub struct State {
 
     /// If next tick is going to reset back to 0.
     pub next_is_reset: bool,
+
+    // BPM detection/prediction.
+    pub tempo: Tempo<{ CPU_SPEED }>,
+
+    // Next predicted tick.
+    pub predicted: Time<{ CPU_SPEED }>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,7 +60,7 @@ pub type OperQueue = ArrayVec<Oper, 64>;
 #[derive(Debug)]
 /// The operations that can be done on the state.
 pub enum Oper {
-    Tick,
+    Tick(Time<{ CPU_SPEED }>),
     Reset,
     Seed(i8),
     Length(i8),
@@ -80,7 +87,9 @@ impl State {
             info!("Handle: {:?}", oper);
 
             match oper {
-                Oper::Tick => {
+                Oper::Tick(interval) => {
+                    self.predicted = self.tempo.predict(interval);
+
                     self.play_head = if self.next_is_reset {
                         self.next_is_reset = false;
 
@@ -98,6 +107,8 @@ impl State {
                 }
 
                 Oper::Reset => {
+                    // Reset might affect the tempo detection.
+                    self.tempo.reset();
                     // Whatever tick is coming next, it's going to reset back to 0.
                     self.next_is_reset = true;
                 }
