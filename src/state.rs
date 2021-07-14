@@ -10,7 +10,7 @@ use crate::CPU_SPEED;
 pub const TRACK_COUNT: usize = 4;
 
 /// App state
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone)]
 pub struct State {
     /// Current display mode.
     pub display: Display,
@@ -47,6 +47,10 @@ pub enum Display {
     Seed(u16),
     /// Length showing 2-32.
     Length(u8),
+    /// Offset showing 0-track length.
+    Offset(u8),
+    /// Track steps/length. [length][steps]
+    Steps(u8, u8), // (length, steps)
 }
 
 impl Default for Display {
@@ -109,14 +113,15 @@ impl State {
                 Oper::Reset => {
                     // Reset might affect the tempo detection.
                     self.tempo.reset();
+
                     // Whatever tick is coming next, it's going to reset back to 0.
                     self.next_is_reset = true;
                 }
 
-                //
                 Oper::Seed(x) => {
                     let s = (self.params.seed - SEED_BASE as u32) as i32;
                     let n = s + x as i32;
+
                     // Seed is 0-9999
                     if n >= 0 && n <= 9999 {
                         self.params.seed = (n + SEED_BASE) as u32;
@@ -128,6 +133,7 @@ impl State {
                 Oper::Length(x) => {
                     let s = self.params.pattern_length as i8;
                     let n = s + x;
+
                     // Patterns must be 2-64.
                     if n >= 2 && n <= 64 {
                         self.params.pattern_length = n as u8;
@@ -135,11 +141,66 @@ impl State {
                         display = Some(Display::Length(n as u8));
                     }
                 }
-                Oper::Offset(i, _x) => {
-                    let _t = &mut self.params.tracks[i];
+
+                Oper::Offset(i, x) => {
+                    let t = &mut self.params.tracks[i];
+
+                    let s = t.offset as i8;
+                    let l = t.length as i8;
+                    let mut n = s + x;
+
+                    // Offset is 0 to step track length, wrapping around.
+                    while n < 0 {
+                        n += l;
+                    }
+
+                    while n >= l {
+                        n -= l;
+                    }
+
+                    t.offset = n as u8;
+                    regenerate = true;
+                    display = Some(Display::Offset(n as u8));
                 }
-                Oper::Steps(i, _x) => {
-                    let _t = &mut self.params.tracks[i];
+
+                Oper::Steps(i, x) => {
+                    let t = &mut self.params.tracks[i];
+
+                    let s1 = t.steps as i8;
+
+                    let mut n1 = s1 + x;
+                    let mut n2 = t.length as i8;
+
+                    // Step cannot be longer than track length. Wrap around increases length.
+                    if n1 > n2 {
+                        n1 = 0;
+                        n2 += 1;
+                    }
+
+                    // Step cannot < 0. Wrap around and decrease length.
+                    if n1 < 0 {
+                        n2 -= 1;
+                        n1 = n2;
+                    }
+
+                    // Clamp values to min/max.
+                    if n1 < 0 {
+                        n1 = 0;
+                    }
+                    if n2 < 2 {
+                        n2 = 2;
+                    }
+                    if n2 > 64 {
+                        n2 = 64;
+                    }
+                    if n1 > n2 {
+                        n1 = n2;
+                    }
+
+                    t.steps = n1 as u8;
+                    t.length = n2 as u8;
+                    regenerate = true;
+                    display = Some(Display::Steps(n2 as u8, n1 as u8));
                 }
             }
         }
