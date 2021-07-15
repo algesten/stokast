@@ -2,9 +2,11 @@
 
 use alg::clock::Time;
 use alg::gen::{Generated, Params, SEED_BASE, STOKAST_PARAMS};
+use alg::rnd::Rnd;
 use alg::tempo::Tempo;
 use arrayvec::ArrayVec;
 
+use crate::lfo::Lfo;
 use crate::CPU_SPEED;
 
 pub const TRACK_COUNT: usize = 4;
@@ -24,6 +26,9 @@ pub struct State {
 
     /// The generated tracks.
     pub generated: Generated<{ TRACK_COUNT }>,
+
+    /// The LFOs.
+    pub lfo: [Lfo; TRACK_COUNT],
 
     /// Current play head. Goes from 0..(params.pattern_length - 1)
     pub play_head: usize,
@@ -74,11 +79,15 @@ pub enum Oper {
 
 impl State {
     pub fn new() -> Self {
-        State {
+        let mut st = State {
             params: STOKAST_PARAMS,
             generated: Generated::new(STOKAST_PARAMS),
             ..Default::default()
-        }
+        };
+
+        st.regenerate();
+
+        st
     }
 
     pub fn update(&mut self, now: Time<{ CPU_SPEED }>, todo: impl Iterator<Item = Oper>) {
@@ -206,7 +215,7 @@ impl State {
         }
 
         if regenerate {
-            self.generated = Generated::new(self.params);
+            self.regenerate();
         }
 
         if let Some(d) = display {
@@ -217,6 +226,16 @@ impl State {
 
         if change {
             info!("State: {:#?}", self);
+        }
+    }
+
+    fn regenerate(&mut self) {
+        self.generated = Generated::new(self.params);
+
+        let mut rnd = Rnd::new(self.generated.rnd.next());
+
+        for lfo in &mut self.lfo {
+            lfo.set_seed(rnd.next());
         }
     }
 }

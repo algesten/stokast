@@ -27,6 +27,7 @@ use crate::state::State;
 
 mod input;
 mod inter;
+mod lfo;
 mod lock;
 mod logging;
 mod max6958;
