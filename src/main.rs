@@ -31,6 +31,7 @@ mod lock;
 mod logging;
 mod max6958;
 mod mcp23s17;
+mod mcp4728;
 mod output;
 mod state;
 
@@ -147,6 +148,7 @@ fn main() -> ! {
     let i2c_lock = Lock::new(i2c);
 
     let mut seg = max6958::Max6958::new(i2c_lock.clone(), max6958::Variant::A);
+    let mut dac = mcp4728::Mcp4728::new(i2c_lock.clone());
 
     cortex_m::interrupt::free(|cs| {
         seg.set_shutdown(false, cs).unwrap();
