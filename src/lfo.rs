@@ -3,18 +3,32 @@
 use alg::geom::{sin, tri};
 use alg::rnd::Rnd;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 /// A 12-bit LFO.
 pub struct Lfo {
     offset: u32,
     prev: u16,
     mode: Mode,
 
-    rnd_seed: u32,
+    rnd: [u32; 64],
     steps: u8,
 
     last: u16,
     next: Option<u16>,
+}
+
+impl Default for Lfo {
+    fn default() -> Self {
+        Lfo {
+            offset: 0,
+            prev: 0,
+            mode: Mode::Random,
+            rnd: [0; 64],
+            steps: 0,
+            last: 0,
+            next: None,
+        }
+    }
 }
 
 impl Lfo {
@@ -25,8 +39,12 @@ impl Lfo {
     }
 
     pub fn set_seed_steps(&mut self, rnd_seed: u32, steps: u8) {
-        self.rnd_seed = rnd_seed;
         self.steps = steps;
+
+        let mut rnd = Rnd::new(rnd_seed);
+        for i in 0..self.rnd.len() {
+            self.rnd[i] = rnd.next();
+        }
 
         self.update();
     }
@@ -44,7 +62,7 @@ impl Lfo {
     }
 
     fn update(&mut self) {
-        let n = self.mode.output(self.offset, self.rnd_seed, self.steps);
+        let n = self.mode.output(self.offset, &self.rnd, self.steps);
         if n != self.last {
             self.last = n;
             self.next = Some(n);
@@ -83,18 +101,12 @@ impl Mode {
         12
     }
 
-    pub fn output(&self, offset: u32, rnd_seed: u32, steps: u8) -> u16 {
+    pub fn output(&self, offset: u32, rnd: &[u32], steps: u8) -> u16 {
         match self {
             Mode::Random => {
-                // TODO cpu cycles can be saved here.
-                let mut rnd = Rnd::new(rnd_seed);
-
                 let x = offset / (u32::MAX / steps as u32);
 
-                let mut n = 0;
-                for _ in 0..(x + 1) {
-                    n = rnd.next();
-                }
+                let n = rnd[x as usize];
 
                 (n >> 16) as u16
             }
