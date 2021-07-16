@@ -33,7 +33,7 @@ where
     /// Set the output value of a single DAC channel.
     pub fn set_channel(
         &mut self,
-        channel: Channel,
+        channel: usize,
         value: u16,
         cs: &CriticalSection,
     ) -> Result<(), E> {
@@ -51,12 +51,4 @@ where
 
         i2c.write(ADDRESS, bytes)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Channel {
-    A = 0b00,
-    B = 0b01,
-    C = 0b10,
-    D = 0b11,
 }

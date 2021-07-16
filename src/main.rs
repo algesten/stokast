@@ -109,12 +109,6 @@ fn main() -> ! {
         .build(spi_lock.clone(), spi_cs_ext2)
         .unwrap();
 
-    cortex_m::interrupt::free(|cs| {
-        io_ext1.verify_config(cs).unwrap();
-        // spuriously read the interrupt capture to clear it out
-        io_ext1.read_int_cap(cs).unwrap();
-    });
-
     // Flags to indicate that an interrupt has fired that means we are to
     // read io_ext1 or io_ext2 respectively.
     let io_ext_flags = Lock::new((false, false));
@@ -309,7 +303,7 @@ fn main() -> ! {
     };
 
     let mut outputs = Outputs {
-        play_head_last: 0,
+        playhead_last: 0,
         gate1: Gate::new(pin_gate1, 50),
         gate2: Gate::new(pin_gate2, 50),
         gate3: Gate::new(pin_gate3, 50),
@@ -366,7 +360,7 @@ fn main() -> ! {
                     let mut read = io_ext1_read.get(cs);
 
                     if x != *read {
-                        info!("ext1 reading cap: {:016b}", x);
+                        info!("ext1 reading: {:016b}", x);
                         *read = x;
                         io_ext_change = true;
                     }
@@ -402,6 +396,23 @@ fn main() -> ! {
         });
 
         outputs.tick(now, &state);
+
+        let mut lfo_upd = [
+            state.lfo[0].tick(),
+            state.lfo[1].tick(),
+            state.lfo[2].tick(),
+            state.lfo[3].tick(),
+        ];
+
+        if lfo_upd.iter().any(|l| l.is_some()) {
+            cortex_m::interrupt::free(|cs| {
+                for (i, upd) in lfo_upd.iter_mut().enumerate() {
+                    if let Some(value) = upd.take() {
+                        dac.set_channel(i.into(), value, cs).unwrap();
+                    }
+                }
+            });
+        }
 
         loop_count += 1;
     }

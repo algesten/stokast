@@ -7,7 +7,7 @@ use crate::state::State;
 use crate::CPU_SPEED;
 
 pub struct Outputs<P1, P2, P3, P4> {
-    pub play_head_last: usize,
+    pub playhead_last: usize,
     pub gate1: Gate<P1>,
     pub gate2: Gate<P2>,
     pub gate3: Gate<P3>,
@@ -24,20 +24,18 @@ where
     pub fn tick(&mut self, now: Time<{ CPU_SPEED }>, state: &State) {
         use GateSet::*;
 
-        let play_head = state.play_head;
+        let playhead = state.playhead;
 
         let (g1, g2, g3, g4) = {
-            if play_head != self.play_head_last {
-                self.play_head_last = play_head;
+            if playhead != self.playhead_last {
+                self.playhead_last = playhead;
 
-                let parm = &state.params;
                 let pats = &state.generated.patterns;
-                let plen = parm.pattern_length as usize;
 
-                let g1 = pats[0][play_head % plen.min(parm.tracks[0].length as usize)].into();
-                let g2 = pats[1][play_head % plen.min(parm.tracks[1].length as usize)].into();
-                let g3 = pats[2][play_head % plen.min(parm.tracks[2].length as usize)].into();
-                let g4 = pats[3][play_head % plen.min(parm.tracks[3].length as usize)].into();
+                let g1 = pats[0][state.track_playhead[0]].into();
+                let g2 = pats[1][state.track_playhead[1]].into();
+                let g3 = pats[2][state.track_playhead[2]].into();
+                let g4 = pats[3][state.track_playhead[3]].into();
 
                 (g1, g2, g3, g4)
             } else {

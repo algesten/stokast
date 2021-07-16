@@ -30,8 +30,14 @@ pub struct State {
     /// The LFOs.
     pub lfo: [Lfo; TRACK_COUNT],
 
-    /// Current play head. Goes from 0..(params.pattern_length - 1)
-    pub play_head: usize,
+    /// Current global playhead. Goes from 0..(params.pattern_length - 1)
+    pub playhead: usize,
+
+    /// Playhead for each track.
+    pub track_playhead: [usize; TRACK_COUNT],
+
+    /// Amount between 0..u32::MAX that each tick increases.
+    pub track_per_tick: [u64; TRACK_COUNT],
 
     /// If next tick is going to reset back to 0.
     pub next_is_reset: bool,
@@ -39,7 +45,10 @@ pub struct State {
     // BPM detection/prediction.
     pub tempo: Tempo<{ CPU_SPEED }>,
 
-    // Next predicted tick.
+    // Last clock tick.
+    pub last: Time<{ CPU_SPEED }>,
+
+    // Interval to next predicted clock tick.
     pub predicted: Time<{ CPU_SPEED }>,
 }
 
@@ -101,14 +110,15 @@ impl State {
 
             match oper {
                 Oper::Tick(interval) => {
+                    self.last = now;
                     self.predicted = self.tempo.predict(interval);
 
-                    self.play_head = if self.next_is_reset {
+                    self.playhead = if self.next_is_reset {
                         self.next_is_reset = false;
 
                         0
                     } else {
-                        let n = self.play_head + 1;
+                        let n = self.playhead + 1;
 
                         // play_head goes from 0..(pattern_length - 1).
                         if n as u8 >= self.params.pattern_length {
@@ -117,6 +127,8 @@ impl State {
                             n
                         }
                     };
+
+                    self.track_playhead = self.track_playhead();
                 }
 
                 Oper::Reset => {
@@ -227,6 +239,12 @@ impl State {
         if change {
             info!("State: {:#?}", self);
         }
+
+        let offset = self.track_offset(now);
+
+        for (i, lfo) in self.lfo.iter_mut().enumerate() {
+            lfo.set_offset(offset[i]);
+        }
     }
 
     fn regenerate(&mut self) {
@@ -234,8 +252,44 @@ impl State {
 
         let mut rnd = Rnd::new(self.generated.rnd.next());
 
-        for lfo in &mut self.lfo {
-            lfo.set_seed(rnd.next());
+        for (i, lfo) in self.lfo.iter_mut().enumerate() {
+            let steps = self.params.tracks[i].steps;
+            lfo.set_seed_steps(rnd.next(), steps);
         }
+
+        self.track_per_tick = [
+            (u32::MAX / (self.params.tracks[0].length as u32)) as u64,
+            (u32::MAX / (self.params.tracks[1].length as u32)) as u64,
+            (u32::MAX / (self.params.tracks[2].length as u32)) as u64,
+            (u32::MAX / (self.params.tracks[3].length as u32)) as u64,
+        ];
+    }
+
+    fn track_playhead(&self) -> [usize; TRACK_COUNT] {
+        let playhead = self.playhead;
+        let parm = &self.params;
+        let plen = parm.pattern_length as usize;
+
+        [
+            playhead % plen.min(parm.tracks[0].length as usize),
+            playhead % plen.min(parm.tracks[1].length as usize),
+            playhead % plen.min(parm.tracks[2].length as usize),
+            playhead % plen.min(parm.tracks[3].length as usize),
+        ]
+    }
+
+    fn track_offset(&self, now: Time<{ CPU_SPEED }>) -> [u32; TRACK_COUNT] {
+        let lapsed = (now - self.last).count().max(0) as u64;
+        let predicted = self.predicted.count() as u64;
+
+        let ph = &self.track_playhead;
+        let pt = &self.track_per_tick;
+
+        [
+            (ph[0] as u64 * pt[0] + (lapsed.min(predicted) * pt[0]) / predicted) as u32,
+            (ph[1] as u64 * pt[1] + (lapsed.min(predicted) * pt[1]) / predicted) as u32,
+            (ph[2] as u64 * pt[2] + (lapsed.min(predicted) * pt[2]) / predicted) as u32,
+            (ph[3] as u64 * pt[3] + (lapsed.min(predicted) * pt[3]) / predicted) as u32,
+        ]
     }
 }
