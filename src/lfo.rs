@@ -11,7 +11,7 @@ pub struct Lfo {
     mode: Mode,
 
     rnd: [u32; 64],
-    steps: u8,
+    length: u8,
 
     last: u16,
     next: Option<u16>,
@@ -24,7 +24,7 @@ impl Default for Lfo {
             prev: 0,
             mode: Mode::Random,
             rnd: [0; 64],
-            steps: 0,
+            length: 2,
             last: 0,
             next: None,
         }
@@ -38,8 +38,8 @@ impl Lfo {
         self.update();
     }
 
-    pub fn set_seed_steps(&mut self, rnd_seed: u32, steps: u8) {
-        self.steps = steps;
+    pub fn set_seed_length(&mut self, rnd_seed: u32, length: u8) {
+        self.length = length;
 
         let mut rnd = Rnd::new(rnd_seed);
         for i in 0..self.rnd.len() {
@@ -62,7 +62,7 @@ impl Lfo {
     }
 
     fn update(&mut self) {
-        let n = self.mode.output(self.offset, &self.rnd, self.steps);
+        let n = self.mode.output(self.offset, &self.rnd, self.length);
         if n != self.last {
             self.last = n;
             self.next = Some(n);
@@ -101,14 +101,16 @@ impl Mode {
         12
     }
 
-    pub fn output(&self, offset: u32, rnd: &[u32], steps: u8) -> u16 {
+    fn output(&self, offset: u32, rnd: &[u32], length: u8) -> u16 {
+        assert!(length > 0);
+
         match self {
             Mode::Random => {
-                let x = offset / (u32::MAX / steps as u32);
+                let x = offset / (u32::MAX / length as u32);
 
                 let n = rnd[x as usize];
 
-                (n >> 16) as u16
+                (n >> 20) as u16
             }
 
             Mode::SawUp => saw_12(offset),
