@@ -83,6 +83,16 @@ fn main() -> ! {
         ccm::spi::PrescalarSelect::LPSPI_PODF_5,
     );
 
+    // Holders of the last reading of the io ext.
+    let io_ext1_read = Lock::new(0_u16);
+    let io_ext2_read = Lock::new(0_u16);
+
+    // Flags to indicate that an interrupt has fired that means we are to
+    // read io_ext1 or io_ext2 respectively.
+    let io_ext_flags = Lock::new((false, false));
+
+    setup_gpio_interrupts(ext1_irq, ext2_irq, io_ext_flags.clone());
+
     let mut spi_io = spi4_builder.build(pins.p11, pins.p12, pins.p13);
 
     // // From datasheet for MCP23S17 we see that max speed is 10MHz
@@ -109,15 +119,14 @@ fn main() -> ! {
         .build(spi_lock.clone(), spi_cs_ext2)
         .unwrap();
 
-    // Flags to indicate that an interrupt has fired that means we are to
-    // read io_ext1 or io_ext2 respectively.
-    let io_ext_flags = Lock::new((false, false));
-
-    // Holders of the last reading of the io ext.
-    let io_ext1_read = Lock::new(0_u16);
-    let io_ext2_read = Lock::new(0_u16);
-
-    setup_gpio_interrupts(ext1_irq, ext2_irq, io_ext_flags.clone());
+    cortex_m::interrupt::free(|cs| {
+        io_ext1.verify_config(cs).unwrap();
+        io_ext1.read_int_cap(cs).unwrap();
+        io_ext1.read_inputs(cs).unwrap();
+        // io_ext1.verify_config(cs).unwrap();
+        // io_ext2.read_int_cap(cs).unwrap();
+        // io_ext2.read_inputs(cs).unwrap();
+    });
 
     // How to configure an ADC
     // let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
@@ -360,7 +369,7 @@ fn main() -> ! {
                     let mut read = io_ext1_read.get(cs);
 
                     if x != *read {
-                        info!("ext1 reading: {:016b}", x);
+                        debug!("ext1 reading: {:016b}", x);
                         *read = x;
                         io_ext_change = true;
                     }
@@ -374,7 +383,7 @@ fn main() -> ! {
                     let mut read = io_ext2_read.get(cs);
 
                     if x != *read {
-                        info!("ext2 reading: {:016b}", x);
+                        debug!("ext2 reading: {:016b}", x);
                         *read = x;
                         io_ext_change = true;
                     }
@@ -428,9 +437,9 @@ use crate::inter::InterruptConfiguration;
 use bsp::interrupt;
 use imxrt_hal::gpio::Input;
 
-// B1_01 - GPIO2_IO17 - ALT5
-type IoExt1InterruptPin = GPIO<bsp::common::P8, Input>;
 // B1_00 - GPIO2_IO16 - ALT5
+type IoExt1InterruptPin = GPIO<bsp::common::P8, Input>;
+// B1_01 - GPIO2_IO17 - ALT5
 type IoExt2InterruptPin = GPIO<bsp::common::P7, Input>;
 
 pub fn setup_gpio_interrupts(
