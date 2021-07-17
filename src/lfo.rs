@@ -1,5 +1,7 @@
 //! 12-bit LFO with different modes.
 
+use core::fmt::Debug;
+
 use alg::geom::{sin, tri};
 use alg::rnd::Rnd;
 
@@ -10,11 +12,20 @@ pub struct Lfo {
     prev: u16,
     mode: Mode,
 
-    rnd: [u32; 64],
+    rnd: RndStep,
     length: u8,
 
     last: u16,
     next: Option<u16>,
+}
+
+#[derive(Clone)]
+struct RndStep([u32; 64]);
+
+impl Debug for RndStep {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "RndStep")
+    }
 }
 
 impl Default for Lfo {
@@ -23,7 +34,7 @@ impl Default for Lfo {
             offset: 0,
             prev: 0,
             mode: Mode::Random,
-            rnd: [0; 64],
+            rnd: RndStep([0; 64]),
             length: 2,
             last: 0,
             next: None,
@@ -42,8 +53,8 @@ impl Lfo {
         self.length = length;
 
         let mut rnd = Rnd::new(rnd_seed);
-        for i in 0..self.rnd.len() {
-            self.rnd[i] = rnd.next();
+        for i in 0..self.rnd.0.len() {
+            self.rnd.0[i] = rnd.next();
         }
 
         self.update();
@@ -62,7 +73,7 @@ impl Lfo {
     }
 
     fn update(&mut self) {
-        let n = self.mode.output(self.offset, &self.rnd, self.length);
+        let n = self.mode.output(self.offset, &self.rnd.0, self.length);
         if n != self.last {
             self.last = n;
             self.next = Some(n);
@@ -141,7 +152,7 @@ fn saw_12(offset: u32) -> u16 {
 
     let n = offset / DELTA;
 
-    (n >> 16) as u16
+    (n & 0xffff) as u16
 }
 
 fn tri_12(offset: u32) -> u16 {
