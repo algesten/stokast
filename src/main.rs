@@ -324,6 +324,11 @@ fn main() -> ! {
 
     let mut state = State::new();
 
+    state.lfo[0].set_mode(1);
+    // state.lfo[1].set_mode(1);
+    // state.lfo[2].set_mode(1);
+    // state.lfo[3].set_mode(1);
+
     let opers = Lock::new(OperQueue::new());
 
     loop {
@@ -349,6 +354,7 @@ fn main() -> ! {
                 loop_count,
                 10_000_000.0 / loop_count as f32
             );
+            info!("State: {:#?}", state);
             start = now;
             loop_count = 0;
         }
@@ -405,6 +411,8 @@ fn main() -> ! {
         });
 
         outputs.tick(now, &state);
+
+        state.set_lfo_offset(now);
 
         let mut lfo_upd = [
             state.lfo[0].tick(),

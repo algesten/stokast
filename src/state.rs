@@ -237,9 +237,11 @@ impl State {
         }
 
         if change {
-            info!("State: {:#?}", self);
+            // info!("State: {:#?}", self);
         }
+    }
 
+    pub fn set_lfo_offset(&mut self, now: Time<{ CPU_SPEED }>) {
         let offset = self.track_offset(now);
 
         for (i, lfo) in self.lfo.iter_mut().enumerate() {
