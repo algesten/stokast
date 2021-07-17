@@ -37,6 +37,7 @@ where
         value: u16,
         cs: &CriticalSection,
     ) -> Result<(), E> {
+        // debug!("Set channel ({}): {}", channel, value);
         assert!(value <= 4095);
 
         return Ok(());

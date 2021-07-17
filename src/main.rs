@@ -36,6 +36,7 @@ mod mcp4728;
 mod output;
 mod state;
 
+/// 600MHz
 pub const CPU_SPEED: u32 = ccm::PLL1::ARM_HZ;
 
 #[cortex_m_rt::entry]
@@ -322,6 +323,7 @@ fn main() -> ! {
 
     let mut start = clock.now();
     let mut loop_count = 0_u32;
+    let mut last_lfo_update = start;
 
     let mut state = State::new();
 
@@ -341,8 +343,11 @@ fn main() -> ! {
         if time_lapsed >= Time::from_secs(10) {
             // 2021-07-01 this is: 71_424_181
             //  rotary enc decel   52_566_664
-            //  after locks etc:   11_904_273 ~0.84µS per loop
-            //  io_ext_change:     20_832_340 ~0.48µS
+            //  after locks etc:   11_904_273 0.84µS per loop
+            //  io_ext_change:     20_832_340 0.48µS
+            //  -- full LFO etc (now tests are with clock pulse)
+            //  first optimize:     3_590_341 2.79µS
+            //  minimize lfo upd:  14_310_145 0.70µS
             //
             // We know a reset happens roughly 800ns before the
             // next clock pulse.
@@ -360,7 +365,13 @@ fn main() -> ! {
             loop_count = 0;
         }
 
-        state.set_lfo_offset(now);
+        // This is quite expensive. By doing it every 10µs we are quite confident to
+        // do 4096 updates in the minimum length a track can be. Breaks down if
+        // the clock pulse is very high.
+        if now - last_lfo_update >= Time::from_micros(10) {
+            last_lfo_update = now;
+            state.set_lfo_offset(now);
+        }
 
         let mut lfo_upd = [
             state.lfo[0].tick(),
