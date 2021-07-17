@@ -77,6 +77,11 @@ impl<T> Lock<T> {
         let data = unsafe { &mut *self.as_ptr() };
         LockGuard { data }
     }
+
+    /// Read the value without obtaining the lock.
+    pub fn read(&self) -> &T {
+        unsafe { &*self.as_ptr() }
+    }
 }
 
 impl<'a, T> Deref for LockGuard<'a, T> {

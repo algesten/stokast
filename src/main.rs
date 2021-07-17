@@ -83,9 +83,10 @@ fn main() -> ! {
         ccm::spi::PrescalarSelect::LPSPI_PODF_5,
     );
 
-    // Holders of the last reading of the io ext.
-    let io_ext1_read = Lock::new(0_u16);
-    let io_ext2_read = Lock::new(0_u16);
+    // Last reading of io_ext1.
+    let mut io_ext1_read = 0;
+    // Last reading of io_ext2.
+    let mut io_ext2_read = 0;
 
     // Flags to indicate that an interrupt has fired that means we are to
     // read io_ext1 or io_ext2 respectively.
@@ -187,126 +188,126 @@ fn main() -> ! {
         // ext1 b4 - pin_a
         // ext1 a3 - pin_b
         seed: EncoderAccelerator::new(Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
+            &io_ext1_read,
             0b0000_0000_0001_0000,
             0b0000_1000_0000_0000,
         ))),
         // ext1 a4
         seed_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0001_0000_0000_0000),
+            BitmaskDigitalInput::new(&io_ext1_read, 0b0001_0000_0000_0000),
             false,
         ),
 
         // ext2 b1 - pin_a
         // ext2 b0 - pin_b
         length: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
+            &io_ext2_read,
             0b0000_0000_0000_0010,
             0b0000_0000_0000_0001,
         )),
         // ext2 b2
         length_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0000_0000_0000_0100),
+            BitmaskDigitalInput::new(&io_ext2_read, 0b0000_0000_0000_0100),
             false,
         ),
 
         // ext1 a1 - pin_a
         // ext1 b5 - pin_b
         offs1: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
+            &io_ext1_read,
             0b0000_0010_0000_0000,
             0b0000_0000_0010_0000,
         )),
         // ext1 a2
         offs1_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_0100_0000_0000),
+            BitmaskDigitalInput::new(&io_ext1_read, 0b0000_0100_0000_0000),
             false,
         ),
         // ext1 b7 - pin_a
         // ext1 a0 - pin_b
         step1: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
+            &io_ext1_read,
             0b0000_0000_1000_0000,
             0b0000_0000_0000_0001,
         )),
         // ext1 b6
         step1_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_0000_0100_0000),
+            BitmaskDigitalInput::new(&io_ext1_read, 0b0000_0000_0100_0000),
             false,
         ),
 
         // ext1 b2 - pin_a
         // ext1 b0 - pin_b
         offs2: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
+            &io_ext1_read,
             0b0000_0000_0000_0100,
             0b0000_0000_0000_0001,
         )),
         // ext1 b1
         offs2_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b0000_0000_0000_0010),
+            BitmaskDigitalInput::new(&io_ext1_read, 0b0000_0000_0000_0010),
             false,
         ),
         // ext1 a5 - pin_a
         // ext1 a6 - pin_b
         step2: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext1_read.as_ptr(),
+            &io_ext1_read,
             0b0010_0000_0000_0000,
             0b0100_0000_0000_0000,
         )),
         // ext1 a7
         step2_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext1_read.as_ptr(), 0b1000_0000_0000_0000),
+            BitmaskDigitalInput::new(&io_ext1_read, 0b1000_0000_0000_0000),
             false,
         ),
 
         // ext2 b5 - pin_a
         // ext2 b4 - pin_b
         offs3: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
+            &io_ext2_read,
             0b0000_0000_0010_0000,
             0b0000_0000_0001_0000,
         )),
         // ext2 a1
         offs3_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0000_0010_0000_0000),
+            BitmaskDigitalInput::new(&io_ext2_read, 0b0000_0010_0000_0000),
             false,
         ),
         // ext2 b7 - pin_a
         // ext2 b6 - pin_b
         step3: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
+            &io_ext2_read,
             0b0000_0000_1000_0000,
             0b0000_0000_0100_0000,
         )),
         // ext2 a0
         step3_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0000_0001_0000_0000),
+            BitmaskDigitalInput::new(&io_ext2_read, 0b0000_0001_0000_0000),
             false,
         ),
 
         // ext2 a2 - pin_a
         // ext2 a3 - pin_b
         offs4: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
+            &io_ext2_read,
             0b0000_0100_0000_0000,
             0b0000_1000_0000_0000,
         )),
         // ext2 a4
         offs4_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b0001_0000_0000_0000),
+            BitmaskDigitalInput::new(&io_ext2_read, 0b0001_0000_0000_0000),
             false,
         ),
         // ext2 a5 - pin_a
         // ext2 a6 - pin_b
         step4: Encoder::new(BitmaskQuadratureSource::new(
-            io_ext2_read.as_ptr(),
+            &io_ext2_read,
             0b0010_0000_0000_0000,
             0b0100_0000_0000_0000,
         )),
         // ext2 a7
         step4_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(io_ext2_read.as_ptr(), 0b1000_0000_0000_0000),
+            BitmaskDigitalInput::new(&io_ext2_read, 0b1000_0000_0000_0000),
             false,
         ),
     };
@@ -329,7 +330,7 @@ fn main() -> ! {
     // state.lfo[2].set_mode(1);
     // state.lfo[3].set_mode(1);
 
-    let opers = Lock::new(OperQueue::new());
+    let mut opers = OperQueue::new();
 
     loop {
         clock.tick();
@@ -359,59 +360,6 @@ fn main() -> ! {
             loop_count = 0;
         }
 
-        cortex_m::interrupt::free(|cs| {
-            // set to true if we really have an io_ext change. that way
-            // we can avoid a gazillion tick() in inputs.tick().
-            let mut io_ext_change = false;
-
-            {
-                let mut flags = io_ext_flags.get(cs);
-
-                // interrupt for io_ext1 has fired
-                if flags.0 {
-                    flags.0 = false;
-
-                    let x = !io_ext1.read_inputs(cs).unwrap();
-                    let mut read = io_ext1_read.get(cs);
-
-                    if x != *read {
-                        debug!("ext1 reading: {:016b}", x);
-                        *read = x;
-                        io_ext_change = true;
-                    }
-                }
-
-                // interrupt for io_ext2 has fired
-                if flags.1 {
-                    flags.1 = false;
-
-                    let x = !io_ext2.read_inputs(cs).unwrap();
-                    let mut read = io_ext2_read.get(cs);
-
-                    if x != *read {
-                        debug!("ext2 reading: {:016b}", x);
-                        *read = x;
-                        io_ext_change = true;
-                    }
-                }
-            }
-
-            let mut opers = opers.get(cs);
-
-            // Read all potential input and turn it into operations.
-            inputs.tick(now, &mut opers, io_ext_change);
-
-            // Current length of operations.
-            let len = opers.len();
-
-            if len > 0 {
-                // Apply the operations to the state.
-                state.update(now, opers.drain(0..len));
-            }
-        });
-
-        outputs.tick(now, &state);
-
         state.set_lfo_offset(now);
 
         let mut lfo_upd = [
@@ -421,15 +369,69 @@ fn main() -> ! {
             state.lfo[3].tick(),
         ];
 
-        if lfo_upd.iter().any(|l| l.is_some()) {
+        let any_lfo_upd = lfo_upd.iter().any(|l| l.is_some());
+
+        // set to true if we really have an io_ext change. that way
+        // we can avoid a gazillion tick() in inputs.tick().
+        let mut io_ext_change = false;
+        let flags_ro = io_ext_flags.read();
+
+        // We want to avoid taking the free lock as much as possible. It costs
+        // 8µS to take it, and this way we only take it if we really need to.
+        if any_lfo_upd || flags_ro.0 || flags_ro.1 {
+            //
             cortex_m::interrupt::free(|cs| {
-                for (i, upd) in lfo_upd.iter_mut().enumerate() {
-                    if let Some(value) = upd.take() {
-                        dac.set_channel(i.into(), value, cs).unwrap();
+                if any_lfo_upd {
+                    for (i, upd) in lfo_upd.iter_mut().enumerate() {
+                        if let Some(value) = upd.take() {
+                            dac.set_channel(i.into(), value, cs).unwrap();
+                        }
+                    }
+                }
+
+                {
+                    let mut flags = io_ext_flags.get(cs);
+
+                    if flags.0 {
+                        flags.0 = false;
+
+                        let x = !io_ext1.read_inputs(cs).unwrap();
+
+                        if x != io_ext1_read {
+                            debug!("ext1 reading: {:016b}", x);
+                            io_ext1_read = x;
+                            io_ext_change = true;
+                        }
+                    }
+
+                    // interrupt for io_ext2 has fired
+                    if flags.1 {
+                        flags.1 = false;
+
+                        let x = !io_ext2.read_inputs(cs).unwrap();
+
+                        if x != io_ext2_read {
+                            debug!("ext2 reading: {:016b}", x);
+                            io_ext2_read = x;
+                            io_ext_change = true;
+                        }
                     }
                 }
             });
         }
+
+        // Read all potential input and turn it into operations.
+        inputs.tick(now, &mut opers, io_ext_change);
+
+        // Current length of operations.
+        let len = opers.len();
+
+        if len > 0 {
+            // Apply the operations to the state.
+            state.update(now, opers.drain(0..len));
+        }
+
+        outputs.tick(now, &state);
 
         loop_count += 1;
     }
