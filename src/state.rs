@@ -253,8 +253,8 @@ impl State {
         let mut rnd = Rnd::new(self.generated.rnd.next());
 
         for (i, lfo) in self.lfo.iter_mut().enumerate() {
-            let steps = self.params.tracks[i].steps;
-            lfo.set_seed_steps(rnd.next(), steps);
+            let length = self.params.tracks[i].length;
+            lfo.set_seed_length(rnd.next(), length);
         }
 
         self.track_per_tick = [
@@ -285,11 +285,20 @@ impl State {
         let ph = &self.track_playhead;
         let pt = &self.track_per_tick;
 
+        #[inline(always)]
+        fn pred(lapsed: u64, predicted: u64, per_tick: u64) -> u64 {
+            if predicted > 0 {
+                (lapsed.min(predicted) * per_tick) / predicted
+            } else {
+                0
+            }
+        }
+
         [
-            (ph[0] as u64 * pt[0] + (lapsed.min(predicted) * pt[0]) / predicted) as u32,
-            (ph[1] as u64 * pt[1] + (lapsed.min(predicted) * pt[1]) / predicted) as u32,
-            (ph[2] as u64 * pt[2] + (lapsed.min(predicted) * pt[2]) / predicted) as u32,
-            (ph[3] as u64 * pt[3] + (lapsed.min(predicted) * pt[3]) / predicted) as u32,
+            (ph[0] as u64 * pt[0] + pred(lapsed, predicted, pt[0])) as u32,
+            (ph[1] as u64 * pt[1] + pred(lapsed, predicted, pt[1])) as u32,
+            (ph[2] as u64 * pt[2] + pred(lapsed, predicted, pt[2])) as u32,
+            (ph[3] as u64 * pt[3] + pred(lapsed, predicted, pt[3])) as u32,
         ]
     }
 }
