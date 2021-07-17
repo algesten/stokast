@@ -93,7 +93,7 @@ where
             error!("Incorrect config: {:0x?}", x);
         }
         let x = self.transfer(address(false, 0x0c), 0, cs)?;
-        if x != self.params.con {
+        if x != self.params.pul {
             error!("Incorrect pull-up: {:0x?}", x);
         }
 
