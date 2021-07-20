@@ -40,6 +40,9 @@ pub struct State {
     /// Current global playhead. Goes from 0..(params.pattern_length - 1)
     pub playhead: usize,
 
+    /// Ever increasing count of the clock tick. Never resets.
+    pub tick_count: u64,
+
     /// Playhead for each track.
     pub track_playhead: [usize; TRACK_COUNT],
 
@@ -158,6 +161,7 @@ impl State {
                 Oper::Tick(interval) => {
                     self.last = now;
                     self.predicted = self.tempo.predict(interval);
+                    self.tick_count += 1;
 
                     self.playhead = if self.next_is_reset {
                         self.next_is_reset = false;
@@ -174,7 +178,7 @@ impl State {
                         }
                     };
 
-                    self.track_playhead = self.track_playhead();
+                    self.update_track_playhead();
                 }
 
                 Oper::Reset => {
@@ -361,17 +365,17 @@ impl State {
         ];
     }
 
-    fn track_playhead(&self) -> [usize; TRACK_COUNT] {
-        let playhead = self.playhead;
+    fn update_track_playhead(&mut self) {
         let parm = &self.params;
         let plen = parm.pattern_length as usize;
 
-        [
-            playhead % plen.min(parm.tracks[0].length as usize),
-            playhead % plen.min(parm.tracks[1].length as usize),
-            playhead % plen.min(parm.tracks[2].length as usize),
-            playhead % plen.min(parm.tracks[3].length as usize),
-        ]
+        for i in 0..TRACK_COUNT {
+            self.track_playhead[i] = match self.track_sync[i] {
+                TrackSync::Sync => self.playhead % plen.min(parm.tracks[0].length as usize),
+                TrackSync::Free => self.playhead % parm.tracks[0].length as usize,
+                TrackSync::Loop => (self.tick_count % parm.tracks[0].length as u64) as usize,
+            };
+        }
     }
 
     fn track_offset(&self, now: Time<{ CPU_SPEED }>) -> [u32; TRACK_COUNT] {
