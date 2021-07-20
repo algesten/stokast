@@ -183,11 +183,25 @@ where
             return;
         }
 
+        {
+            let e = self.seed_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::SeedClick);
+            }
+        }
+
         // Global length
         {
             let x = self.length.tick(now);
             if x != 0 {
                 todo.push(Oper::Length(x));
+            }
+        }
+
+        {
+            let e = self.length_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::LengthClick);
             }
         }
 
@@ -197,11 +211,21 @@ where
             if x != 0 {
                 todo.push(Oper::Offset(0, x));
             }
+
+            let e = self.offs1_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::OffsetClick(0));
+            }
         }
         {
             let x = self.offs2.tick(now);
             if x != 0 {
                 todo.push(Oper::Offset(1, x));
+            }
+
+            let e = self.offs2_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::OffsetClick(1));
             }
         }
         {
@@ -209,11 +233,21 @@ where
             if x != 0 {
                 todo.push(Oper::Offset(2, x));
             }
+
+            let e = self.offs3_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::OffsetClick(2));
+            }
         }
         {
             let x = self.offs4.tick(now);
             if x != 0 {
                 todo.push(Oper::Offset(3, x));
+            }
+
+            let e = self.offs4_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::OffsetClick(3));
             }
         }
 
@@ -223,11 +257,21 @@ where
             if x != 0 {
                 todo.push(Oper::Steps(0, x));
             }
+
+            let e = self.step1_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::StepsClick(0));
+            }
         }
         {
             let x = self.step2.tick(now);
             if x != 0 {
                 todo.push(Oper::Steps(1, x));
+            }
+
+            let e = self.step2_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::StepsClick(1));
             }
         }
         {
@@ -235,11 +279,21 @@ where
             if x != 0 {
                 todo.push(Oper::Steps(2, x));
             }
+
+            let e = self.step3_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::StepsClick(2));
+            }
         }
         {
             let x = self.step4.tick(now);
             if x != 0 {
                 todo.push(Oper::Steps(3, x));
+            }
+
+            let e = self.step4_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::StepsClick(3));
             }
         }
     }

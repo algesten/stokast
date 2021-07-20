@@ -21,9 +21,6 @@ pub struct State {
     /// Current input mode.
     pub input_mode: InputMode,
 
-    /// Track for current input mode (if relevant)
-    pub input_track: Option<usize>,
-
     /// Time when last user action happened. This is so we can
     /// switch back to the Run mode once left idle for a bit.
     pub last_action: Time<{ CPU_SPEED }>,
@@ -36,6 +33,9 @@ pub struct State {
 
     /// The LFOs.
     pub lfo: [Lfo; TRACK_COUNT],
+
+    /// Track sync setting.
+    pub track_sync: [TrackSync; TRACK_COUNT],
 
     /// Current global playhead. Goes from 0..(params.pattern_length - 1)
     pub playhead: usize,
@@ -66,22 +66,22 @@ pub enum InputMode {
     Run,
 
     /// Seed showing 0-9999.
-    Seed(u16),
+    Seed,
     /// Show "fate" and wait for a knob twiddle.
     Fate,
 
     /// Length showing 2-32.
-    Length(u8),
+    Length,
 
     /// Offset showing 0-track length.
-    Offset(u8),
+    Offset(usize),
     /// Which track lfo is currently active.
-    Lfo(lfo::Mode),
+    Lfo(usize),
 
     /// Track steps/length. [length][steps]
-    Steps(u8, u8), // (length, steps)
+    Steps(usize), // (length, steps)
     /// Which track sync mode.
-    Sync(TrackSync),
+    TrackSync(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,9 +94,26 @@ pub enum TrackSync {
     Loop = 2,
 }
 
-impl Default for InputMode {
-    fn default() -> Self {
-        InputMode::Run
+impl TrackSync {
+    const fn len() -> usize {
+        3
+    }
+}
+
+impl From<i8> for TrackSync {
+    fn from(mut x: i8) -> Self {
+        use TrackSync::*;
+
+        while x < 0 {
+            x += Self::len() as i8;
+        }
+
+        match x % (Self::len() as i8) {
+            0 => Sync,
+            1 => Free,
+            2 => Loop,
+            _ => panic!("Wot wot?"),
+        }
     }
 }
 
@@ -108,9 +125,13 @@ pub enum Oper {
     Tick(Time<{ CPU_SPEED }>),
     Reset,
     Seed(i8),
+    SeedClick,
     Length(i8),
+    LengthClick,
     Offset(usize, i8),
+    OffsetClick(usize),
     Steps(usize, i8),
+    StepsClick(usize),
 }
 
 impl State {
@@ -130,7 +151,6 @@ impl State {
         let mut change = false;
         let mut regenerate = false;
         let mut input_mode = None;
-        let mut input_track = None;
 
         for oper in todo {
             change = true;
@@ -168,15 +188,27 @@ impl State {
                 }
 
                 Oper::Seed(x) => {
-                    let s = (self.params.seed - SEED_BASE as u32) as i32;
-                    let n = s + x as i32;
+                    if self.input_mode == InputMode::Fate {
+                        // KABOOM randomize all the things.
+                        todo!()
+                    } else {
+                        let s = (self.params.seed - SEED_BASE as u32) as i32;
+                        let n = s + x as i32;
 
-                    // Seed is 0-9999
-                    if n >= 0 && n <= 9999 {
-                        self.params.seed = (n + SEED_BASE) as u32;
-                        regenerate = true;
-                        input_mode = Some(InputMode::Seed(n as u16));
-                        input_track = None;
+                        // Seed is 0-9999
+                        if n >= 0 && n <= 9999 {
+                            self.params.seed = (n + SEED_BASE) as u32;
+                            regenerate = true;
+                            input_mode = Some(InputMode::Seed);
+                        }
+                    }
+                }
+
+                Oper::SeedClick => {
+                    if self.input_mode == InputMode::Fate {
+                        input_mode = Some(InputMode::Seed);
+                    } else {
+                        input_mode = Some(InputMode::Fate);
                     }
                 }
 
@@ -188,72 +220,101 @@ impl State {
                     if n >= 2 && n <= 64 {
                         self.params.pattern_length = n as u8;
                         regenerate = true;
-                        input_mode = Some(InputMode::Length(n as u8));
-                        input_track = None;
+                        input_mode = Some(InputMode::Length);
                     }
                 }
 
-                Oper::Offset(i, x) => {
-                    let t = &mut self.params.tracks[i];
-
-                    let s = t.offset as i8;
-                    let l = t.length as i8;
-                    let mut n = s + x;
-
-                    // Offset is 0 to step track length, wrapping around.
-                    while n < 0 {
-                        n += l;
-                    }
-
-                    while n >= l {
-                        n -= l;
-                    }
-
-                    t.offset = n as u8;
-                    regenerate = true;
-                    input_mode = Some(InputMode::Offset(n as u8));
-                    input_track = Some(i);
+                Oper::LengthClick => {
+                    todo!() // what did I have planned here?!
                 }
 
-                Oper::Steps(i, x) => {
-                    let t = &mut self.params.tracks[i];
+                Oper::Offset(tr, x) => {
+                    if self.input_mode == InputMode::Lfo(tr) {
+                        self.lfo[tr].set_mode(x);
+                        self.last_action = now;
+                    } else {
+                        let t = &mut self.params.tracks[tr];
 
-                    let s1 = t.steps as i8;
+                        let s = t.offset as i8;
+                        let l = t.length as i8;
+                        let mut n = s + x;
 
-                    let mut n1 = s1 + x;
-                    let mut n2 = t.length as i8;
+                        // Offset is 0 to step track length, wrapping around.
+                        while n < 0 {
+                            n += l;
+                        }
 
-                    // Step cannot be longer than track length. Wrap around increases length.
-                    if n1 > n2 {
-                        n1 = 0;
-                        n2 += 1;
-                    }
+                        while n >= l {
+                            n -= l;
+                        }
 
-                    // Step cannot < 0. Wrap around and decrease length.
-                    if n1 < 0 {
-                        n2 -= 1;
-                        n1 = n2;
+                        t.offset = n as u8;
+                        regenerate = true;
+                        input_mode = Some(InputMode::Offset(tr));
                     }
+                }
 
-                    // Clamp values to min/max.
-                    if n1 < 0 {
-                        n1 = 0;
+                Oper::OffsetClick(tr) => {
+                    if self.input_mode == InputMode::Lfo(tr) {
+                        self.input_mode = InputMode::Offset(tr);
+                    } else {
+                        self.input_mode = InputMode::Lfo(tr);
                     }
-                    if n2 < 2 {
-                        n2 = 2;
-                    }
-                    if n2 > 64 {
-                        n2 = 64;
-                    }
-                    if n1 > n2 {
-                        n1 = n2;
-                    }
+                }
 
-                    t.steps = n1 as u8;
-                    t.length = n2 as u8;
-                    regenerate = true;
-                    input_mode = Some(InputMode::Steps(n2 as u8, n1 as u8));
-                    input_track = Some(i);
+                Oper::Steps(tr, x) => {
+                    if self.input_mode == InputMode::TrackSync(tr) {
+                        let mut n = self.track_sync[tr] as i8;
+                        n += x;
+                        self.track_sync[tr] = n.into();
+                        self.last_action = now;
+                    } else {
+                        let t = &mut self.params.tracks[tr];
+
+                        let s1 = t.steps as i8;
+
+                        let mut n1 = s1 + x;
+                        let mut n2 = t.length as i8;
+
+                        // Step cannot be longer than track length. Wrap around increases length.
+                        if n1 > n2 {
+                            n1 = 0;
+                            n2 += 1;
+                        }
+
+                        // Step cannot < 0. Wrap around and decrease length.
+                        if n1 < 0 {
+                            n2 -= 1;
+                            n1 = n2;
+                        }
+
+                        // Clamp values to min/max.
+                        if n1 < 0 {
+                            n1 = 0;
+                        }
+                        if n2 < 2 {
+                            n2 = 2;
+                        }
+                        if n2 > 64 {
+                            n2 = 64;
+                        }
+                        if n1 > n2 {
+                            n1 = n2;
+                        }
+
+                        t.steps = n1 as u8;
+                        t.length = n2 as u8;
+                        regenerate = true;
+                        input_mode = Some(InputMode::Steps(tr));
+                    }
+                }
+
+                Oper::StepsClick(tr) => {
+                    if self.input_mode == InputMode::TrackSync(tr) {
+                        self.input_mode = InputMode::Steps(tr);
+                    } else {
+                        self.input_mode = InputMode::TrackSync(tr);
+                    }
                 }
             }
         }
@@ -264,7 +325,6 @@ impl State {
 
         if let Some(input_mode) = input_mode {
             self.input_mode = input_mode;
-            self.input_track = input_track;
             self.last_action = now;
             change = true;
         }
@@ -279,7 +339,6 @@ impl State {
         // Reset back the input mode to the default after a timeout.
         if self.input_mode != InputMode::Run && now - self.last_action > Time::from_secs(5) {
             self.input_mode = InputMode::Run;
-            self.input_track = None;
         }
 
         let offset = self.track_offset(now);
@@ -371,15 +430,15 @@ impl State {
                 segs
             }
 
-            InputMode::Seed(v) => (*v).into(),
+            InputMode::Seed => (self.params.seed - SEED_BASE as u32).into(),
 
             InputMode::Fate => "fate".into(),
 
-            InputMode::Length(v) => (*v).into(),
+            InputMode::Length => self.params.pattern_length.into(),
 
-            InputMode::Offset(v) => (*v).into(),
+            InputMode::Offset(tr) => self.params.tracks[*tr].offset.into(),
 
-            InputMode::Lfo(l) => match l {
+            InputMode::Lfo(tr) => match self.lfo[*tr].mode {
                 lfo::Mode::Random => "rand".into(),
                 lfo::Mode::SawUp => SAW_UP,
                 lfo::Mode::SawDown => SAW_DN,
@@ -394,7 +453,12 @@ impl State {
                 lfo::Mode::Square180 => "p180".into(),
             },
 
-            InputMode::Steps(l, s) => {
+            InputMode::Steps(tr) => {
+                let (s, l) = {
+                    let p = &self.params.tracks[*tr];
+                    (p.steps, p.length)
+                };
+
                 let mut segs = Segs4::new();
 
                 segs.0[0] = Seg::from(s % 10) as u8;
@@ -405,12 +469,24 @@ impl State {
                 segs
             }
 
-            InputMode::Sync(v) => match v {
+            InputMode::TrackSync(tr) => match self.track_sync[*tr] {
                 TrackSync::Sync => "sync",
                 TrackSync::Free => "free",
                 TrackSync::Loop => "loop",
             }
             .into(),
         }
+    }
+}
+
+impl Default for TrackSync {
+    fn default() -> Self {
+        TrackSync::Sync
+    }
+}
+
+impl Default for InputMode {
+    fn default() -> Self {
+        InputMode::Run
     }
 }

@@ -13,7 +13,7 @@ use crate::max6958::Segs;
 pub struct Lfo {
     offset: u32,
     prev: u16,
-    mode: Mode,
+    pub mode: Mode,
 
     rnd: RndStep,
     length: u8,
