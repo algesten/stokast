@@ -123,6 +123,7 @@ where
 ///
 /// The translation.
 pub enum Seg {
+    SP = 0b00000000,
     N0 = 0b01111110,
     N1 = 0b00110000,
     N2 = 0b01101101,
@@ -158,11 +159,42 @@ pub enum Seg {
     // W = 0b00000000,
     // X = 0b00000000,
     Y = 0b00111011,
+
+    CornerBr = 0b00011000,
+    CornerMru = 0b00100001,
+    CornerTr = 0b01100000,
+    CornerMrd = 0b00010001,
+
+    SegA = 0b01000000,
+    SegB = 0b00100000,
+    SegC = 0b00010000,
+    SegD = 0b00001000,
+    SegE = 0b00000100,
+    SegF = 0b00000010,
+    SegG = 0b00000001,
 }
 
-/// Holder of x number of segments. Use [`Segs4`].
+//  -
+// | |
+//  -
+// | |
+//  -
+
+/// Holder of X-1 number of segments (needs 1 byte extra). Use [`Segs4`].
 #[doc(hidden)]
-pub struct Segs<const X: usize>([u8; X]);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Segs<const X: usize>(pub [u8; X]);
+
+impl<const X: usize> Segs<X> {
+    pub fn new() -> Self {
+        Segs([0; X])
+    }
+
+    pub fn as_buf(&mut self) -> &mut [u8] {
+        // first byte is reserved for the command
+        &mut self.0[1..]
+    }
+}
 
 /// Type for sending 4 chars in one go. Can be converted from a &str or number.
 ///
@@ -237,33 +269,36 @@ impl From<u8> for Seg {
             8 => N8,
             9 => N9,
 
+            b' ' => SP,
+
             // ascii uppercase
-            b'a' => A,
-            b'b' => B,
-            b'c' => C,
-            b'd' => D,
-            b'e' => E,
-            b'f' => F,
-            b'g' => G,
-            b'h' => H,
-            b'i' => I,
-            b'j' => J,
+            b'A' => A,
+            b'B' => B,
+            b'C' => C,
+            b'D' => D,
+            b'E' => E,
+            b'F' => F,
+            b'G' => G,
+            b'H' => H,
+            b'I' => I,
+            b'J' => J,
             // 75 => K,
-            b'l' => L,
+            b'L' => L,
             // 77 => M,
-            b'n' => N,
-            b'o' => O,
-            b'p' => P,
+            b'N' => N,
+            b'O' => O,
+            b'P' => P,
             // 81 => Q,
-            b'r' => R,
-            b's' => N5,
-            b't' => T,
-            b'u' => U,
+            b'R' => R,
+            b'S' => N5,
+            b'T' => T,
+            b'U' => U,
             // 86 => V,
             // 87 => W,
             // 88 => X,
-            b'y' => Y,
-            b'z' => N2,
+            b'Y' => Y,
+            b'Z' => N2,
+
             _ => panic!("Unmapped char"),
         }
     }

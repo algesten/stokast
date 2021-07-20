@@ -6,7 +6,11 @@ use alg::rnd::Rnd;
 use alg::tempo::Tempo;
 use arrayvec::ArrayVec;
 
-use crate::lfo::Lfo;
+use crate::lfo::SAW_DN;
+use crate::lfo::SAW_UP;
+use crate::lfo::{self, Lfo};
+use crate::max6958::Seg;
+use crate::max6958::Segs4;
 use crate::CPU_SPEED;
 
 pub const TRACK_COUNT: usize = 4;
@@ -14,12 +18,15 @@ pub const TRACK_COUNT: usize = 4;
 /// App state
 #[derive(Debug, Default, Clone)]
 pub struct State {
-    /// Current display mode.
-    pub display: Display,
+    /// Current input mode.
+    pub input_mode: InputMode,
 
-    /// Time when display was last updated. This is used to automatically
+    /// Track for current input mode (if relevant)
+    pub input_track: Option<usize>,
+
+    /// Time when last user action happened. This is so we can
     /// switch back to the Run mode once left idle for a bit.
-    pub display_last_update: Time<{ CPU_SPEED }>,
+    pub last_action: Time<{ CPU_SPEED }>,
 
     /// Generative parameters for generated.
     pub params: Params<{ TRACK_COUNT }>,
@@ -53,23 +60,43 @@ pub struct State {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Display {
-    /// Show increasing steps per incoming clock tick.
+pub enum InputMode {
+    /// Increasing steps per incoming clock tick.
     /// This is the default we go back to after showing something else.
     Run,
+
     /// Seed showing 0-9999.
     Seed(u16),
+    /// Show "fate" and wait for a knob twiddle.
+    Fate,
+
     /// Length showing 2-32.
     Length(u8),
+
     /// Offset showing 0-track length.
     Offset(u8),
+    /// Which track lfo is currently active.
+    Lfo(lfo::Mode),
+
     /// Track steps/length. [length][steps]
     Steps(u8, u8), // (length, steps)
+    /// Which track sync mode.
+    Sync(TrackSync),
 }
 
-impl Default for Display {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackSync {
+    /// Track is restarted at pattern length and reset.
+    Sync = 0,
+    /// Track is restarted only by reset.
+    Free = 1,
+    /// Track just keeps looping, ignoring both pattern length and reset.
+    Loop = 2,
+}
+
+impl Default for InputMode {
     fn default() -> Self {
-        Display::Run
+        InputMode::Run
     }
 }
 
@@ -102,7 +129,8 @@ impl State {
     pub fn update(&mut self, now: Time<{ CPU_SPEED }>, todo: impl Iterator<Item = Oper>) {
         let mut change = false;
         let mut regenerate = false;
-        let mut display = None;
+        let mut input_mode = None;
+        let mut input_track = None;
 
         for oper in todo {
             change = true;
@@ -147,7 +175,8 @@ impl State {
                     if n >= 0 && n <= 9999 {
                         self.params.seed = (n + SEED_BASE) as u32;
                         regenerate = true;
-                        display = Some(Display::Seed(n as u16));
+                        input_mode = Some(InputMode::Seed(n as u16));
+                        input_track = None;
                     }
                 }
 
@@ -159,7 +188,8 @@ impl State {
                     if n >= 2 && n <= 64 {
                         self.params.pattern_length = n as u8;
                         regenerate = true;
-                        display = Some(Display::Length(n as u8));
+                        input_mode = Some(InputMode::Length(n as u8));
+                        input_track = None;
                     }
                 }
 
@@ -181,7 +211,8 @@ impl State {
 
                     t.offset = n as u8;
                     regenerate = true;
-                    display = Some(Display::Offset(n as u8));
+                    input_mode = Some(InputMode::Offset(n as u8));
+                    input_track = Some(i);
                 }
 
                 Oper::Steps(i, x) => {
@@ -221,7 +252,8 @@ impl State {
                     t.steps = n1 as u8;
                     t.length = n2 as u8;
                     regenerate = true;
-                    display = Some(Display::Steps(n2 as u8, n1 as u8));
+                    input_mode = Some(InputMode::Steps(n2 as u8, n1 as u8));
+                    input_track = Some(i);
                 }
             }
         }
@@ -230,9 +262,10 @@ impl State {
             self.regenerate();
         }
 
-        if let Some(d) = display {
-            self.display = d;
-            self.display_last_update = now;
+        if let Some(input_mode) = input_mode {
+            self.input_mode = input_mode;
+            self.input_track = input_track;
+            self.last_action = now;
             change = true;
         }
 
@@ -241,7 +274,14 @@ impl State {
         }
     }
 
-    pub fn set_lfo_offset(&mut self, now: Time<{ CPU_SPEED }>) {
+    /// Update the state with passing time.
+    pub fn update_time(&mut self, now: Time<{ CPU_SPEED }>) {
+        // Reset back the input mode to the default after a timeout.
+        if self.input_mode != InputMode::Run && now - self.last_action > Time::from_secs(5) {
+            self.input_mode = InputMode::Run;
+            self.input_track = None;
+        }
+
         let offset = self.track_offset(now);
 
         for (i, lfo) in self.lfo.iter_mut().enumerate() {
@@ -302,5 +342,75 @@ impl State {
             (ph[2] as u64 * pt[2] + pred(lapsed, predicted, pt[2])) as u32,
             (ph[3] as u64 * pt[3] + pred(lapsed, predicted, pt[3])) as u32,
         ]
+    }
+
+    /// Represent the current state on the segment display.
+    pub fn to_display(&self) -> Segs4 {
+        match &self.input_mode {
+            InputMode::Run => {
+                let mut segs = Segs4::new();
+
+                segs.0[1] = Seg::from(self.playhead as u8 % 10) as u8;
+                segs.0[2] = Seg::from((self.playhead as u8 / 10) % 10) as u8;
+
+                // Loop animation over 6 frames synced on playhead.
+                const LOOP: [u8; 6] = [
+                    Seg::SegA as u8,
+                    Seg::SegB as u8,
+                    Seg::SegC as u8,
+                    Seg::SegD as u8,
+                    Seg::SegE as u8,
+                    Seg::SegF as u8,
+                ];
+
+                let li = self.playhead % 6;
+                let c = LOOP[li];
+                segs.0[0] = c;
+                segs.0[3] = c;
+
+                segs
+            }
+
+            InputMode::Seed(v) => (*v).into(),
+
+            InputMode::Fate => "fate".into(),
+
+            InputMode::Length(v) => (*v).into(),
+
+            InputMode::Offset(v) => (*v).into(),
+
+            InputMode::Lfo(l) => match l {
+                lfo::Mode::Random => "rand".into(),
+                lfo::Mode::SawUp => SAW_UP,
+                lfo::Mode::SawDown => SAW_DN,
+                lfo::Mode::Sine => "sine".into(),
+                lfo::Mode::Sine90 => "si90".into(),
+                lfo::Mode::Sine180 => "s180".into(),
+                lfo::Mode::Triangle => "tria".into(),
+                lfo::Mode::Triangle90 => "tr90".into(),
+                lfo::Mode::Triangle180 => "t180".into(),
+                lfo::Mode::Square => "puls".into(),
+                lfo::Mode::Square90 => "pu90".into(),
+                lfo::Mode::Square180 => "p180".into(),
+            },
+
+            InputMode::Steps(l, s) => {
+                let mut segs = Segs4::new();
+
+                segs.0[0] = Seg::from(s % 10) as u8;
+                segs.0[1] = Seg::from((s / 10) % 10) as u8;
+                segs.0[2] = Seg::from(l % 10) as u8;
+                segs.0[3] = Seg::from((l / 10) % 10) as u8;
+
+                segs
+            }
+
+            InputMode::Sync(v) => match v {
+                TrackSync::Sync => "sync",
+                TrackSync::Free => "free",
+                TrackSync::Loop => "loop",
+            }
+            .into(),
+        }
     }
 }

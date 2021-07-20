@@ -168,6 +168,7 @@ where
                 self.clock_last = Some(tick);
             }
         }
+
         // Global seed.
         // This must be above the io_ext_change line because of the accelerator.
         {

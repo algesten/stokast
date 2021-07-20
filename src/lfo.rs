@@ -5,6 +5,9 @@ use core::fmt::Debug;
 use alg::geom::{sin, tri};
 use alg::rnd::Rnd;
 
+use crate::max6958::Seg;
+use crate::max6958::Segs;
+
 #[derive(Debug, Clone)]
 /// A 12-bit LFO.
 pub struct Lfo {
@@ -85,7 +88,7 @@ impl Lfo {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     Random = 0,
     SawUp = 1,
@@ -187,3 +190,27 @@ impl From<i8> for Mode {
         }
     }
 }
+
+pub const SAW_UP: Segs<5> = Segs([
+    0,
+    //  -
+    Seg::SegA as u8,
+    //  _|
+    Seg::CornerMru as u8,
+    //  -
+    Seg::SegG as u8,
+    //  _|
+    Seg::CornerBr as u8,
+]);
+
+pub const SAW_DN: Segs<5> = Segs([
+    0,
+    // _
+    Seg::SegD as u8,
+    // -|
+    Seg::CornerMrd as u8,
+    // -
+    Seg::SegG as u8,
+    // -|
+    Seg::CornerTr as u8,
+]);

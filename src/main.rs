@@ -19,6 +19,7 @@ use teensy4_bsp as bsp;
 use crate::input::Inputs;
 use crate::input::PinDigitalIn;
 use crate::lock::Lock;
+use crate::max6958::Segs4;
 use crate::output::Gate;
 use crate::output::Outputs;
 use crate::state::OperQueue;
@@ -316,7 +317,9 @@ fn main() -> ! {
 
     let mut start = clock.now();
     let mut loop_count = 0_u32;
-    let mut last_lfo_update = start;
+    let mut last_time_update = start;
+    let mut last_display_update = start;
+    let mut last_segs = Segs4::new();
 
     let mut state = State::new();
 
@@ -361,9 +364,9 @@ fn main() -> ! {
         // This is quite expensive. By doing it every 10µs we are quite confident to
         // do 4096 updates in the minimum length a track can be. Breaks down if
         // the clock pulse is very high.
-        if now - last_lfo_update >= Time::from_micros(10) {
-            last_lfo_update = now;
-            state.set_lfo_offset(now);
+        if now - last_time_update >= Time::from_micros(10) {
+            last_time_update = now;
+            state.update_time(now);
         }
 
         let mut lfo_upd = [
@@ -380,9 +383,23 @@ fn main() -> ! {
         let mut io_ext_change = false;
         let flags_ro = io_ext_flags.read();
 
+        // Update the display. Only do this 100Hz, if needed
+        let mut display_update = false;
+        if now - last_display_update >= Time::from_millis(10) {
+            last_display_update = now;
+
+            let segs = state.to_display();
+
+            // Do we have a change in display?
+            if segs != last_segs {
+                display_update = true;
+                last_segs = segs;
+            }
+        }
+
         // We want to avoid taking the free lock as much as possible. It costs
         // 8µS to take it, and this way we only take it if we really need to.
-        if any_lfo_upd || flags_ro.0 || flags_ro.1 {
+        if any_lfo_upd || flags_ro.0 || flags_ro.1 || display_update {
             //
             cortex_m::interrupt::free(|cs| {
                 if any_lfo_upd {
@@ -420,6 +437,10 @@ fn main() -> ! {
                             io_ext_change = true;
                         }
                     }
+                }
+
+                if display_update {
+                    seg.set_segs(last_segs, cs).unwrap();
                 }
             });
         }
