@@ -357,12 +357,9 @@ impl State {
             lfo.set_seed_length(rnd.next(), length);
         }
 
-        self.track_per_tick = [
-            (u32::MAX / (self.params.tracks[0].length as u32)) as u64,
-            (u32::MAX / (self.params.tracks[1].length as u32)) as u64,
-            (u32::MAX / (self.params.tracks[2].length as u32)) as u64,
-            (u32::MAX / (self.params.tracks[3].length as u32)) as u64,
-        ];
+        for i in 0..TRACK_COUNT {
+            self.track_per_tick[i] = (u32::MAX / (self.params.tracks[i].length as u32)) as u64
+        }
     }
 
     fn update_track_playhead(&mut self) {
@@ -394,12 +391,13 @@ impl State {
             }
         }
 
-        [
-            (ph[0] as u64 * pt[0] + pred(lapsed, predicted, pt[0])) as u32,
-            (ph[1] as u64 * pt[1] + pred(lapsed, predicted, pt[1])) as u32,
-            (ph[2] as u64 * pt[2] + pred(lapsed, predicted, pt[2])) as u32,
-            (ph[3] as u64 * pt[3] + pred(lapsed, predicted, pt[3])) as u32,
-        ]
+        let mut offs = [0; TRACK_COUNT];
+
+        for i in 0..TRACK_COUNT {
+            offs[i] = (ph[i] as u64 * pt[i] + pred(lapsed, predicted, pt[i])) as u32;
+        }
+
+        offs
     }
 
     /// Represent the current state on the segment display.
