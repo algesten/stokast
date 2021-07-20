@@ -87,6 +87,14 @@ where
         self.write_register(digit.as_reg(), value, cs)
     }
 
+    pub fn set_segs<const X: usize>(&mut self, s: Segs<X>, cs: &CriticalSection) -> Result<(), E> {
+        let mut buf = s.0;
+        buf[0] = Register::Digit0.addr();
+
+        let mut i2c = self.i2c.get(cs);
+        i2c.write(self.addr, &buf)
+    }
+
     fn write_register(&mut self, reg: Register, data: u8, cs: &CriticalSection) -> Result<(), E> {
         let mut i2c = self.i2c.get(cs);
         i2c.write(self.addr, &[reg.addr(), data])
@@ -97,6 +105,167 @@ where
         let mut i2c = self.i2c.get(cs);
         i2c.write_read(self.addr, &[reg.addr()], &mut buf)?;
         Ok(buf[0])
+    }
+}
+
+/// Translation from numbers/chars to segments.
+///
+/// ```ignore
+/// d7 d6 d5 d4 d3 d2 d1 d0
+///  X  a  b  c  d  e  f  g
+///
+///         +- a -+
+///         f     b
+///         |- g -|
+///         e     c
+///         +- d -+
+/// ```
+///
+/// The translation.
+pub enum Seg {
+    N0 = 0b01111110,
+    N1 = 0b00110000,
+    N2 = 0b01101101,
+    N3 = 0b01111001,
+    N4 = 0b00110011,
+    N5 = 0b01011011,
+    N6 = 0b01011111,
+    N7 = 0b01110000,
+    N8 = 0b01111111,
+    N9 = 0b01110011,
+    A = 0b01110111,
+    B = 0b00011111,
+    C = 0b00001101,
+    D = 0b00111101,
+    E = 0b01001111,
+    F = 0b01000111,
+    G = 0b01111011,
+    H = 0b00010111,
+    I = 0b00000110,
+    J = 0b01111100,
+    // K = 0b00000000,
+    L = 0b00001110,
+    // M = 0b00000000,
+    N = 0b00010101,
+    O = 0b00011101,
+    P = 0b01100111,
+    // Q = 0b00000000,
+    R = 0b00000101,
+    // S = 0b00000000,
+    T = 0b00001111,
+    U = 0b00011100,
+    // V = 0b00000000,
+    // W = 0b00000000,
+    // X = 0b00000000,
+    Y = 0b00111011,
+}
+
+/// Holder of x number of segments. Use [`Segs4`].
+#[doc(hidden)]
+pub struct Segs<const X: usize>([u8; X]);
+
+/// Type for sending 4 chars in one go. Can be converted from a &str or number.
+///
+/// The extra byte is for the i2c command.
+pub type Segs4 = Segs<5>;
+
+impl<const X: usize> From<&str> for Segs<X> {
+    fn from(s: &str) -> Self {
+        assert!(s.len() <= X);
+
+        // Write chars reversed in to the buffer, so we can send "SYNC" and get
+        // C on position 0, N on position 1 etc.
+        let mut buf = [0; X];
+        for (i, c) in s.bytes().rev().enumerate() {
+            // Convert each via the Chars conversion enum.
+            buf[i + 1] = Seg::from(c) as u8;
+        }
+
+        Segs(buf)
+    }
+}
+
+impl<const X: usize> From<u32> for Segs<X> {
+    fn from(mut n: u32) -> Self {
+        let mut buf = [0; X];
+
+        for i in 1..X {
+            buf[i] = Seg::from((n % 10) as u8) as u8;
+            n /= 10;
+        }
+
+        Segs(buf)
+    }
+}
+
+impl<const X: usize> From<u16> for Segs<X> {
+    fn from(n: u16) -> Self {
+        Segs::from(n as u32)
+    }
+}
+
+impl<const X: usize> From<u8> for Segs<X> {
+    fn from(n: u8) -> Self {
+        Segs::from(n as u32)
+    }
+}
+
+impl From<u8> for Seg {
+    fn from(mut n: u8) -> Self {
+        use Seg::*;
+
+        // ascii number range
+        if n >= 48 && n <= 57 {
+            n -= 48;
+        }
+
+        // ascii lowercase
+        if n >= 97 && n <= 122 {
+            n -= 32;
+        }
+
+        match n {
+            // if we send a "raw" number
+            0 => N0,
+            1 => N1,
+            2 => N2,
+            3 => N3,
+            4 => N4,
+            5 => N5,
+            6 => N6,
+            7 => N7,
+            8 => N8,
+            9 => N9,
+
+            // ascii uppercase
+            b'a' => A,
+            b'b' => B,
+            b'c' => C,
+            b'd' => D,
+            b'e' => E,
+            b'f' => F,
+            b'g' => G,
+            b'h' => H,
+            b'i' => I,
+            b'j' => J,
+            // 75 => K,
+            b'l' => L,
+            // 77 => M,
+            b'n' => N,
+            b'o' => O,
+            b'p' => P,
+            // 81 => Q,
+            b'r' => R,
+            b's' => N5,
+            b't' => T,
+            b'u' => U,
+            // 86 => V,
+            // 87 => W,
+            // 88 => X,
+            b'y' => Y,
+            b'z' => N2,
+            _ => panic!("Unmapped char"),
+        }
     }
 }
 

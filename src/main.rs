@@ -19,7 +19,6 @@ use teensy4_bsp as bsp;
 use crate::input::Inputs;
 use crate::input::PinDigitalIn;
 use crate::lock::Lock;
-use crate::max6958::Digit;
 use crate::output::Gate;
 use crate::output::Outputs;
 use crate::state::OperQueue;
@@ -159,17 +158,11 @@ fn main() -> ! {
     cortex_m::interrupt::free(|cs| {
         seg.set_shutdown(false, cs).unwrap();
 
-        // driver.set_decode_mode(&[Digit::Digit0]).unwrap();
         // At intensity 40 + scan limit 0123, we get 2mA per led segment.
         // 8 segments * 2mA x 4 chars = 64mA for the display.
         seg.set_scan_limit(max6958::ScanLimit::Digit0123, cs)
             .unwrap();
         seg.set_intensity(40, cs).unwrap();
-        seg.set_decode_mode(
-            &[Digit::Digit0, Digit::Digit1, Digit::Digit2, Digit::Digit3],
-            cs,
-        )
-        .unwrap();
     });
 
     info!("Sure!");
@@ -442,6 +435,7 @@ fn main() -> ! {
             state.update(now, opers.drain(0..len));
         }
 
+        // Update output gates.
         outputs.tick(now, &state);
 
         loop_count += 1;
