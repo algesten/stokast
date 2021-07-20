@@ -148,12 +148,10 @@ impl State {
     }
 
     pub fn update(&mut self, now: Time<{ CPU_SPEED }>, todo: impl Iterator<Item = Oper>) {
-        let mut change = false;
-        let mut regenerate = false;
         let mut input_mode = None;
+        let mut regenerate = false;
 
         for oper in todo {
-            change = true;
             info!("Handle: {:?}", oper);
 
             match oper {
@@ -198,8 +196,8 @@ impl State {
                         // Seed is 0-9999
                         if n >= 0 && n <= 9999 {
                             self.params.seed = (n + SEED_BASE) as u32;
-                            regenerate = true;
                             input_mode = Some(InputMode::Seed);
+                            regenerate = true;
                         }
                     }
                 }
@@ -219,8 +217,8 @@ impl State {
                     // Patterns must be 2-64.
                     if n >= 2 && n <= 64 {
                         self.params.pattern_length = n as u8;
-                        regenerate = true;
                         input_mode = Some(InputMode::Length);
+                        regenerate = true;
                     }
                 }
 
@@ -232,6 +230,7 @@ impl State {
                     if self.input_mode == InputMode::Lfo(tr) {
                         self.lfo[tr].set_mode(x);
                         self.last_action = now;
+                        regenerate = true;
                     } else {
                         let t = &mut self.params.tracks[tr];
 
@@ -249,16 +248,16 @@ impl State {
                         }
 
                         t.offset = n as u8;
-                        regenerate = true;
                         input_mode = Some(InputMode::Offset(tr));
+                        regenerate = true;
                     }
                 }
 
                 Oper::OffsetClick(tr) => {
                     if self.input_mode == InputMode::Lfo(tr) {
-                        self.input_mode = InputMode::Offset(tr);
+                        input_mode = Some(InputMode::Offset(tr));
                     } else {
-                        self.input_mode = InputMode::Lfo(tr);
+                        input_mode = Some(InputMode::Lfo(tr));
                     }
                 }
 
@@ -268,6 +267,7 @@ impl State {
                         n += x;
                         self.track_sync[tr] = n.into();
                         self.last_action = now;
+                        // no need to regenerate here.
                     } else {
                         let t = &mut self.params.tracks[tr];
 
@@ -304,16 +304,16 @@ impl State {
 
                         t.steps = n1 as u8;
                         t.length = n2 as u8;
-                        regenerate = true;
                         input_mode = Some(InputMode::Steps(tr));
+                        regenerate = true;
                     }
                 }
 
                 Oper::StepsClick(tr) => {
                     if self.input_mode == InputMode::TrackSync(tr) {
-                        self.input_mode = InputMode::Steps(tr);
+                        input_mode = Some(InputMode::Steps(tr));
                     } else {
-                        self.input_mode = InputMode::TrackSync(tr);
+                        input_mode = Some(InputMode::TrackSync(tr));
                     }
                 }
             }
@@ -326,11 +326,6 @@ impl State {
         if let Some(input_mode) = input_mode {
             self.input_mode = input_mode;
             self.last_action = now;
-            change = true;
-        }
-
-        if change {
-            // info!("State: {:#?}", self);
         }
     }
 
