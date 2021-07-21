@@ -24,7 +24,7 @@ where
     pub fn tick(&mut self, now: Time<{ CPU_SPEED }>, state: &State) {
         use GateSet::*;
 
-        let playhead = state.playhead;
+        let playhead = state.playhead();
 
         let (g1, g2, g3, g4) = {
             if playhead != self.playhead_last {

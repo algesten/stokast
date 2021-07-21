@@ -38,7 +38,7 @@ pub struct State {
     /// Track sync setting.
     pub track_sync: [TrackSync; TRACK_COUNT],
 
-    /// Current global playhead. Goes from 0..(params.pattern_length - 1)
+    /// Current global playhead. Goes from 0..whenever external reset comes.
     pub playhead: usize,
 
     /// Ever increasing count of the clock tick. Never resets.
@@ -169,14 +169,7 @@ impl State {
 
                         0
                     } else {
-                        let n = self.playhead + 1;
-
-                        // play_head goes from 0..(pattern_length - 1).
-                        if n as u8 >= self.params.pattern_length {
-                            0
-                        } else {
-                            n
-                        }
+                        self.playhead + 1
                     };
 
                     self.update_track_playhead();
@@ -334,6 +327,11 @@ impl State {
         }
     }
 
+    /// Current playhead, 0-63 for instance (depends on pattern length).
+    pub fn playhead(&self) -> usize {
+        self.playhead % self.params.pattern_length as usize
+    }
+
     /// Update the state with passing time.
     pub fn update_time(&mut self, now: Time<{ CPU_SPEED }>) {
         // Reset back the input mode to the default after a timeout.
@@ -366,10 +364,11 @@ impl State {
     fn update_track_playhead(&mut self) {
         let parm = &self.params;
         let plen = parm.pattern_length as usize;
+        let playhead = self.playhead();
 
         for i in 0..TRACK_COUNT {
             self.track_playhead[i] = match self.track_sync[i] {
-                TrackSync::Sync => self.playhead % plen.min(parm.tracks[0].length as usize),
+                TrackSync::Sync => playhead % plen.min(parm.tracks[0].length as usize),
                 TrackSync::Free => self.playhead % parm.tracks[0].length as usize,
                 TrackSync::Loop => (self.tick_count % parm.tracks[0].length as u64) as usize,
             };
@@ -407,8 +406,9 @@ impl State {
             InputMode::Run => {
                 let mut segs = Segs4::new();
 
-                segs.0[1] = Seg::from(self.playhead as u8 % 10) as u8;
-                segs.0[2] = Seg::from((self.playhead as u8 / 10) % 10) as u8;
+                let playhead = self.playhead();
+                segs.0[1] = Seg::from(playhead as u8 % 10) as u8;
+                segs.0[2] = Seg::from((playhead as u8 / 10) % 10) as u8;
 
                 // Loop animation over 6 frames synced on playhead.
                 const LOOP: [u8; 6] = [
@@ -420,7 +420,7 @@ impl State {
                     Seg::SegF as u8,
                 ];
 
-                let li = self.playhead % 6;
+                let li = playhead % 6;
                 let c = LOOP[li];
                 segs.0[0] = c;
                 segs.0[3] = c;
