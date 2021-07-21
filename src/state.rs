@@ -5,6 +5,7 @@ use alg::gen::{Generated, Params, SEED_BASE, STOKAST_PARAMS};
 use alg::rnd::Rnd;
 use alg::tempo::Tempo;
 use arrayvec::ArrayVec;
+use cortex_m::peripheral::DWT;
 
 use crate::lfo::SAW_DN;
 use crate::lfo::SAW_UP;
@@ -192,7 +193,7 @@ impl State {
                 Oper::Seed(x) => {
                     if self.input_mode == InputMode::Fate {
                         // KABOOM randomize all the things.
-                        todo!()
+                        self.tonight_im_in_the_hands_of_fate();
                     } else {
                         let s = (self.params.seed - SEED_BASE as u32) as i32;
                         let n = s + x as i32;
@@ -473,6 +474,71 @@ impl State {
             }
             .into(),
         }
+    }
+
+    fn tonight_im_in_the_hands_of_fate(&mut self) {
+        // TODO: the logic here should maybe be moved into alg?
+
+        // Cycle count is probably random enough as starting point.
+        let seed = DWT::get_cycle_count();
+        let mut rnd = Rnd::new(seed);
+
+        // do tracks before global seed since the seed is further used
+        // for randomization and we don't want the same values.
+        for i in 0..TRACK_COUNT {
+            // always generate both x and y also when y isn't used.
+
+            // Length
+            {
+                let x = rnd.next();
+                let y = rnd.next();
+                self.params.tracks[i].length = if x < u32::MAX / 2 {
+                    // half the time, we do some power of 2.
+                    let n = (y / (u32::MAX / 6)) + 1;
+                    2_u8.pow(n).max(2).min(64)
+                } else {
+                    // at other times some interesting offset.
+                    const LENGTHS: &[u8] =
+                        &[3, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 24];
+                    LENGTHS[(y / (u32::MAX / LENGTHS.len() as u32)) as usize]
+                };
+            }
+
+            // Steps
+            {
+                let x = rnd.next();
+                let y = rnd.next();
+                self.params.tracks[i].steps = if x < u32::MAX / 2 {
+                    // 0 in steps causes the awesome generative randomization to kick in.
+                    // we want that to happen... often.
+                    0
+                } else {
+                    let len = self.params.tracks[i].length as u32;
+                    (y / (u32::MAX / (len + 1))) as u8
+                };
+            }
+
+            // Offset
+            {
+                let x = rnd.next();
+                let y = rnd.next();
+                self.params.tracks[i].offset = if x < u32::MAX / 2 {
+                    // Half the time, no offset.
+                    0
+                } else {
+                    let len = self.params.tracks[i].length as u32;
+                    (y / (u32::MAX / len)) as u8
+                };
+            }
+        }
+
+        self.params.seed = (rnd.next() / (u32::MAX / 9999)) + SEED_BASE as u32;
+
+        // Make moar magic happen
+        self.regenerate();
+
+        // Next tick will start from 0
+        self.next_is_reset = true;
     }
 }
 
