@@ -323,11 +323,6 @@ fn main() -> ! {
 
     let mut state = State::new();
 
-    state.lfo[0].set_mode(1);
-    // state.lfo[1].set_mode(1);
-    // state.lfo[2].set_mode(1);
-    // state.lfo[3].set_mode(1);
-
     let mut opers = OperQueue::new();
 
     loop {
