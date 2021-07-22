@@ -11,13 +11,16 @@ use alg::encoder::Encoder;
 use alg::encoder::EncoderAccelerator;
 use alg::input::{BitmaskDigitalInput, DigitalEdgeInput};
 use bsp::hal::ccm;
+use bsp::interrupt;
 use cortex_m::peripheral::DWT;
 use embedded_hal::spi;
 use imxrt_hal::gpio::GPIO;
+use imxrt_hal::gpio::{Input, Output};
 use teensy4_bsp as bsp;
 
 use crate::input::Inputs;
 use crate::input::PinDigitalIn;
+use crate::inter::InterruptConfiguration;
 use crate::lock::Lock;
 use crate::max6958::Segs4;
 use crate::output::Gate;
@@ -38,6 +41,11 @@ mod state;
 
 /// 600MHz
 pub const CPU_SPEED: u32 = ccm::PLL1::ARM_HZ;
+
+/// LED used to communicate panics etc.
+type LedPcbPin = GPIO<bsp::common::P5, Output>;
+
+static mut LED_PCB: Option<LedPcbPin> = None;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -74,6 +82,10 @@ fn main() -> ! {
     // Interrupt pints for ext1 and ext2
     let ext1_irq = GPIO::new(pins.p8);
     let ext2_irq = GPIO::new(pins.p7);
+
+    let mut led_pcb = GPIO::new(pins.p5).output();
+    led_pcb.set();
+    unsafe { LED_PCB = Some(led_pcb) };
 
     // 1.6E-5
     // 16µS
@@ -461,12 +473,23 @@ fn main() -> ! {
 #[panic_handler]
 fn panic(p: &core::panic::PanicInfo) -> ! {
     error!("{:?}", p);
-    loop {}
+
+    // Might as well take it, we're not going to resume.
+    let mut led = unsafe { LED_PCB.take().unwrap() };
+
+    loop {
+        led.clear();
+        delay(1);
+        led.set();
+        delay(1);
+    }
 }
 
-use crate::inter::InterruptConfiguration;
-use bsp::interrupt;
-use imxrt_hal::gpio::Input;
+fn delay(factor: u32) {
+    for _ in 0..(factor * 50_000_000) {
+        core::hint::spin_loop();
+    }
+}
 
 // B1_00 - GPIO2_IO16 - ALT5
 type IoExt1InterruptPin = GPIO<bsp::common::P8, Input>;
