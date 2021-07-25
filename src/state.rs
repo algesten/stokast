@@ -39,7 +39,7 @@ pub struct State {
     pub track_sync: [TrackSync; TRACK_COUNT],
 
     /// Current global playhead. Goes from 0..whenever external reset comes.
-    pub playhead: usize,
+    pub playhead: u64,
 
     /// Ever increasing count of the clock tick. Never resets.
     pub tick_count: u64,
@@ -329,7 +329,7 @@ impl State {
 
     /// Current playhead, 0-63 for instance (depends on pattern length).
     pub fn playhead(&self) -> usize {
-        self.playhead % self.params.pattern_length as usize
+        (self.playhead % self.params.pattern_length as u64) as usize
     }
 
     /// Update the state with passing time.
@@ -369,7 +369,7 @@ impl State {
         for i in 0..TRACK_COUNT {
             self.track_playhead[i] = match self.track_sync[i] {
                 TrackSync::Sync => playhead % plen.min(parm.tracks[0].length as usize),
-                TrackSync::Free => self.playhead % parm.tracks[0].length as usize,
+                TrackSync::Free => (self.playhead % parm.tracks[0].length as u64) as usize,
                 TrackSync::Loop => (self.tick_count % parm.tracks[0].length as u64) as usize,
             };
         }
