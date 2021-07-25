@@ -76,8 +76,8 @@ fn main() -> ! {
     let pin_gate3 = GPIO::new(pins.p2).output();
     let pin_gate4 = GPIO::new(pins.p3).output();
 
-    let pin_clk = GPIO::new(pins.p20);
-    let pin_rst = GPIO::new(pins.p21);
+    let pin_rst = GPIO::new(pins.p20);
+    let pin_clk = GPIO::new(pins.p21);
 
     // Interrupt pints for ext1 and ext2
     let ext1_irq = GPIO::new(pins.p8);
