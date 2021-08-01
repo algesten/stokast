@@ -82,7 +82,7 @@ pub enum InputMode {
     /// Which track lfo is currently active.
     Lfo(usize),
 
-    /// Track steps/length. [length][steps]
+    /// Track steps/length.
     Steps(usize), // (length, steps)
     /// Which track sync mode.
     TrackSync(usize),

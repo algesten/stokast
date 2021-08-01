@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 //! Driver for MCP4728 4 channel 12-bit DAC.
-//! Datasheet here: https://ww1.microchip.com/downloads/en/DeviceDoc/22187E.pdf
+//! Datasheet here: <https://ww1.microchip.com/downloads/en/DeviceDoc/22187E.pdf>
 
 use cortex_m::interrupt::CriticalSection;
 use embedded_hal::blocking::i2c::{Write, WriteRead};

@@ -2,7 +2,7 @@
 
 //! Driver for MCP23S17 which is a 16-Bit I/O Expander.
 //!
-//! Datasheet here: https://ww1.microchip.com/downloads/en/DeviceDoc/20001952C.pdf
+//! Datasheet here: <https://ww1.microchip.com/downloads/en/DeviceDoc/20001952C.pdf>
 
 // The MCP23S7 starts in 16-bit mode.
 

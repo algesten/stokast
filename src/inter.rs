@@ -1,5 +1,5 @@
 //! This module is very temporary until we land this PR:
-//! https://github.com/imxrt-rs/imxrt-hal/pull/110
+//! <https://github.com/imxrt-rs/imxrt-hal/pull/110>
 
 #![allow(dead_code)]
 
