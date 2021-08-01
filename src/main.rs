@@ -19,12 +19,12 @@ use imxrt_hal::gpio::{Input, Output};
 use teensy4_bsp as bsp;
 
 use crate::input::Inputs;
-use crate::input::PinDigitalIn;
 use crate::inter::InterruptConfiguration;
 use crate::lock::Lock;
 use crate::max6958::Segs4;
 use crate::output::Gate;
 use crate::output::Outputs;
+use crate::state::Oper;
 use crate::state::OperQueue;
 use crate::state::State;
 
@@ -76,8 +76,15 @@ fn main() -> ! {
     let pin_gate3 = GPIO::new(pins.p2).output();
     let pin_gate4 = GPIO::new(pins.p3).output();
 
+    // Flags indicating reset or clock has fired.
+    let clk_flags = Lock::new((false, None));
+
+    // Reset and clock pins. Notice convention here. "clk" means the external
+    // clock signal and "clock" means our internal cycle clock.
     let pin_rst = GPIO::new(pins.p20);
     let pin_clk = GPIO::new(pins.p21);
+
+    setup_clock_interrupts(pin_rst, pin_clk, clk_flags.clone());
 
     // Interrupt pints for ext1 and ext2
     let ext1_irq = GPIO::new(pins.p8);
@@ -105,7 +112,7 @@ fn main() -> ! {
     // read io_ext1 or io_ext2 respectively.
     let io_ext_flags = Lock::new((false, false));
 
-    setup_gpio_interrupts(ext1_irq, ext2_irq, io_ext_flags.clone());
+    setup_ioext_interrupts(ext1_irq, ext2_irq, io_ext_flags.clone());
 
     let mut spi_io = spi4_builder.build(pins.p11, pins.p12, pins.p13);
 
@@ -185,12 +192,6 @@ fn main() -> ! {
 
     let mut inputs = Inputs {
         // Clock signal in. Inverted.
-        clock: DigitalEdgeInput::new(PinDigitalIn(pin_clk), true),
-        // Last tick, since we want intervals.
-        clock_last: None,
-
-        // Reset signal in. Inverted.
-        reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst), true),
 
         // ext1 b4 - pin_a
         // ext1 a3 - pin_b
@@ -333,6 +334,9 @@ fn main() -> ! {
     let mut last_display_update = start;
     let mut last_segs = Segs4::new();
 
+    // Last tick, since we want intervals.
+    let mut clk_last = None;
+
     let mut state = State::new();
 
     let mut opers = OperQueue::new();
@@ -385,10 +389,21 @@ fn main() -> ! {
 
         let any_lfo_upd = lfo_upd.iter().any(|l| l.is_some());
 
+        // "dirty" read whether there might be clk/rst changes.
+        let clk_change = {
+            let (f1, f2) = clk_flags.read();
+            *f1 || f2.is_some()
+        };
+
         // set to true if we really have an io_ext change. that way
         // we can avoid a gazillion tick() in inputs.tick().
         let mut io_ext_change = false;
-        let flags_ro = io_ext_flags.read();
+
+        // "dirty" read whether there might be io ext input.
+        let io_ext_flags_change = {
+            let (f1, f2) = io_ext_flags.read();
+            *f1 || *f2
+        };
 
         // Update the display. Only do this 100Hz, if needed
         let mut display_update = false;
@@ -406,7 +421,7 @@ fn main() -> ! {
 
         // We want to avoid taking the free lock as much as possible. It costs
         // 8µS to take it, and this way we only take it if we really need to.
-        if any_lfo_upd || flags_ro.0 || flags_ro.1 || display_update {
+        if any_lfo_upd || clk_change || io_ext_flags_change || display_update {
             //
             cortex_m::interrupt::free(|cs| {
                 if any_lfo_upd {
@@ -414,6 +429,26 @@ fn main() -> ! {
                         if let Some(value) = upd.take() {
                             dac.set_channel(i.into(), value, cs).unwrap();
                         }
+                    }
+                }
+
+                {
+                    let mut flags = clk_flags.get(cs);
+
+                    // Deliberately read reset before clock, since if we for some reason end up
+                    // reading both reset and clock in the same cycle, we must handle the reset
+                    // before the clock pulse.
+                    if flags.0 {
+                        opers.push(Oper::Reset);
+                        flags.0 = false;
+                    }
+
+                    if let Some(cycle_count) = flags.1.take() {
+                        if let Some(last) = clk_last {
+                            let interval = clock.time_relative(cycle_count) - last;
+                            opers.push(Oper::Tick(interval));
+                        }
+                        clk_last = Some(now);
                     }
                 }
 
@@ -496,7 +531,7 @@ type IoExt1InterruptPin = GPIO<bsp::common::P8, Input>;
 // B1_01 - GPIO2_IO17 - ALT5
 type IoExt2InterruptPin = GPIO<bsp::common::P7, Input>;
 
-pub fn setup_gpio_interrupts(
+pub fn setup_ioext_interrupts(
     mut pin1: IoExt1InterruptPin,
     mut pin2: IoExt2InterruptPin,
     io_ext_flags: Lock<(bool, bool)>,
@@ -525,7 +560,7 @@ pub fn setup_gpio_interrupts(
     }
 
     cortex_m::interrupt::free(|_cs| {
-        info!("setup GPIO interrupts");
+        info!("setup GPIO IoExt interrupts");
 
         pin1.set_interrupt_configuration(InterruptConfiguration::RisingEdge);
         pin1.set_interrupt_enable(true);
@@ -540,5 +575,63 @@ pub fn setup_gpio_interrupts(
 
         // It just so happens that both pins map to the same interrupt.
         unsafe { cortex_m::peripheral::NVIC::unmask(bsp::interrupt::GPIO2_Combined_16_31) };
+    });
+}
+
+// B1_10 GPIO1_IO26 - ALT5
+type ResetInterruptPin = GPIO<bsp::common::P20, Input>;
+// B1_11 - GPIO1_IO27 - ALT5
+type ClockInterruptPin = GPIO<bsp::common::P21, Input>;
+
+pub fn setup_clock_interrupts(
+    mut rst: ResetInterruptPin,
+    mut clk: ClockInterruptPin,
+    clk_flags: Lock<(bool, Option<u32>)>,
+) {
+    use crate::inter::Interrupt;
+
+    static mut INT: Option<(
+        ResetInterruptPin,
+        ClockInterruptPin,
+        Lock<(bool, Option<u32>)>,
+    )> = None;
+
+    #[cortex_m_rt::interrupt]
+    fn GPIO1_Combined_16_31() {
+        cortex_m::interrupt::free(|cs| {
+            let (rst, clk, flags) = unsafe { INT.as_mut().unwrap() };
+
+            let mut flags = flags.get(cs);
+
+            if rst.is_interrupt_status() {
+                rst.clear_interrupt_status();
+                flags.0 = true;
+            }
+
+            if clk.is_interrupt_status() {
+                clk.clear_interrupt_status();
+                // Store the cycle count when the interrupt fires, will be used
+                // as a time code in the main loop.
+                flags.1 = Some(DWT::get_cycle_count());
+            }
+        });
+    }
+
+    cortex_m::interrupt::free(|_cs| {
+        info!("setup GPIO Clock interrupts");
+
+        // falling since inverted
+        rst.set_interrupt_configuration(InterruptConfiguration::FallingEdge);
+        rst.set_interrupt_enable(true);
+        rst.clear_interrupt_status();
+        clk.set_interrupt_configuration(InterruptConfiguration::FallingEdge);
+        clk.set_interrupt_enable(true);
+        clk.clear_interrupt_status();
+
+        unsafe {
+            INT = Some((rst, clk, clk_flags));
+        }
+
+        unsafe { cortex_m::peripheral::NVIC::unmask(bsp::interrupt::GPIO1_Combined_16_31) };
     });
 }
