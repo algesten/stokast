@@ -12,16 +12,20 @@ use alg::encoder::EncoderAccelerator;
 use alg::input::{BitmaskDigitalInput, DigitalEdgeInput};
 use bsp::hal::ccm;
 use bsp::interrupt;
+use cortex_m::interrupt::CriticalSection;
 use cortex_m::peripheral::DWT;
+use embedded_hal::blocking::spi::{Transfer, Write};
 use embedded_hal::spi;
 use imxrt_hal::gpio::GPIO;
 use imxrt_hal::gpio::{Input, Output};
+use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
 use crate::input::Inputs;
 use crate::inter::InterruptConfiguration;
 use crate::lock::Lock;
 use crate::max6958::Segs4;
+use crate::mcp23s17::Mcp23S17;
 use crate::output::Gate;
 use crate::output::Outputs;
 use crate::state::Oper;
@@ -55,10 +59,17 @@ fn main() -> ! {
     let mut cp = cortex_m::Peripherals::take().unwrap();
     let mut systick = bsp::SysTick::new(cp.SYST);
 
+    // Wait so we don't miss the first log message, crashes etc.
+    systick.delay(3000);
+
+    info!("Set clock frequency to: {:?}", ccm::PLL1::ARM_HZ);
+
     // Set clock to the recommended 600 MHz.
     p.ccm
         .pll1
         .set_arm_clock(ccm::PLL1::ARM_HZ, &mut p.ccm.handle, &mut p.dcdc);
+
+    info!("Enable trace and cycle counter");
 
     // // needed for timer
     cp.DCB.enable_trace();
@@ -66,10 +77,9 @@ fn main() -> ! {
 
     let mut clock = Clock::<_, CPU_SPEED>::new(DWT::get_cycle_count);
 
-    // Wait so we don't miss the first log message, crashes etc.
-    systick.delay(3000);
-
     let pins = bsp::t40::into_pins(p.iomuxc);
+
+    info!("Get gate pins");
 
     let pin_gate1 = GPIO::new(pins.p0).output();
     let pin_gate2 = GPIO::new(pins.p1).output();
@@ -78,6 +88,8 @@ fn main() -> ! {
 
     // Flags indicating reset or clock has fired.
     let clk_flags = Lock::new((false, None));
+
+    info!("Get rst/clk pins");
 
     // Reset and clock pins. Notice convention here. "clk" means the external
     // clock signal and "clock" means our internal cycle clock.
@@ -140,14 +152,28 @@ fn main() -> ! {
         .build(spi_lock.clone(), spi_cs_ext2)
         .unwrap();
 
+    fn verify<E, I, P>(cs: &CriticalSection, io_ext: &mut Mcp23S17<I, P>) -> Result<(), E>
+    where
+        I: Transfer<u16, Error = E>,
+        I: Write<u16, Error = E>,
+        P: Pin,
+    {
+        io_ext.verify_config(cs)?;
+        io_ext.read_int_cap(cs)?;
+        io_ext.read_inputs(cs)?;
+        Ok(())
+    }
+
     cortex_m::interrupt::free(|cs| {
-        io_ext1.verify_config(cs).unwrap();
-        io_ext1.read_int_cap(cs).unwrap();
-        io_ext1.read_inputs(cs).unwrap();
-        // io_ext1.verify_config(cs).unwrap();
-        // io_ext2.read_int_cap(cs).unwrap();
-        // io_ext2.read_inputs(cs).unwrap();
-    });
+        if let Err(e) = verify(cs, &mut io_ext1) {
+            return Err(e);
+        }
+        if let Err(e) = verify(cs, &mut io_ext2) {
+            return Err(e);
+        }
+        Ok(())
+    })
+    .unwrap();
 
     // How to configure an ADC
     // let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
@@ -184,8 +210,6 @@ fn main() -> ! {
             .unwrap();
         seg.set_intensity(40, cs).unwrap();
     });
-
-    info!("Sure!");
 
     // Let's assume the u16 is transferred as:
     // [A7, A6, A5, A4,   A3, A2, A1, A0,   B7, B6, B5, B4,   B3, B2, B1, B0]
@@ -236,7 +260,7 @@ fn main() -> ! {
         step1: Encoder::new(BitmaskQuadratureSource::new(
             &io_ext1_read,
             0b0000_0000_1000_0000,
-            0b0000_0000_0000_0001,
+            0b0000_0001_0000_0000,
         )),
         // ext1 b6
         step1_btn: DigitalEdgeInput::new(
@@ -341,6 +365,8 @@ fn main() -> ! {
 
     let mut opers = OperQueue::new();
 
+    info!("Start main loop");
+
     loop {
         clock.tick();
 
@@ -427,7 +453,9 @@ fn main() -> ! {
                 if any_lfo_upd {
                     for (i, upd) in lfo_upd.iter_mut().enumerate() {
                         if let Some(value) = upd.take() {
-                            dac.set_channel(i.into(), value, cs).unwrap();
+                            if let Err(e) = dac.set_channel(i.into(), value, cs) {
+                                error!("dac.set_channel: {:?}", e);
+                            }
                         }
                     }
                 }

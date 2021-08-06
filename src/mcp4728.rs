@@ -37,10 +37,8 @@ where
         value: u16,
         cs: &CriticalSection,
     ) -> Result<(), E> {
-        // debug!("Set channel ({}): {}", channel, value);
+        debug!("Set channel ({}): {}", channel, value);
         assert!(value <= 4095);
-
-        return Ok(());
 
         let mut i2c = self.i2c.get(cs);
         let bytes = &[
