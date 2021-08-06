@@ -17,6 +17,8 @@ use crate::CPU_SPEED;
 /// The type parameters here looks rather nuts. The reason is that we want to hide all
 /// concrete input pins/types underneath.
 pub struct Inputs<
+    Digi1,
+    Digi2,
     RSeed,
     RSeedBtn,
     RLen,
@@ -38,6 +40,10 @@ pub struct Inputs<
     RStep4,
     RStep4Btn,
 > {
+    pub clock: Digi1,
+    pub clock_last: Option<Time<{ CPU_SPEED }>>,
+    pub reset: Digi2,
+
     pub seed: RSeed,
     pub seed_btn: RSeedBtn,
 
@@ -66,6 +72,8 @@ pub struct Inputs<
 }
 
 impl<
+        Digi1,
+        Digi2,
         RSeed,
         RSeedBtn,
         RLen,
@@ -88,6 +96,8 @@ impl<
         RStep4Btn,
     >
     Inputs<
+        Digi1,
+        Digi2,
         RSeed,
         RSeedBtn,
         RLen,
@@ -110,6 +120,8 @@ impl<
         RStep4Btn,
     >
 where
+    Digi1: EdgeInput<{ CPU_SPEED }>,
+    Digi2: EdgeInput<{ CPU_SPEED }>,
     RSeed: DeltaInput<{ CPU_SPEED }>,
     RSeedBtn: EdgeInput<{ CPU_SPEED }>,
     RLen: DeltaInput<{ CPU_SPEED }>,
@@ -132,6 +144,31 @@ where
     RStep4Btn: EdgeInput<{ CPU_SPEED }>,
 {
     pub fn tick(&mut self, now: Time<{ CPU_SPEED }>, todo: &mut OperQueue, io_ext_change: bool) {
+        // Reset input
+        // Deliberately read reset before clock, since if we for some reason end up
+        // reading both reset and clock in the same cycle, we must handle the reset
+        // before the clock pulse.
+        {
+            let x = self.reset.tick(now);
+            // falling since inverted
+            if let Some(Edge::Falling(_)) = x {
+                todo.push(Oper::Reset);
+            }
+        }
+
+        // Clock input
+        {
+            let x = self.clock.tick(now);
+            // falling since inverted
+            if let Some(Edge::Falling(tick)) = x {
+                if let Some(last) = self.clock_last {
+                    let interval = tick - last;
+                    todo.push(Oper::Tick(interval));
+                }
+                self.clock_last = Some(tick);
+            }
+        }
+
         // Global seed.
         // This must be above the io_ext_change line because of the accelerator.
         {
