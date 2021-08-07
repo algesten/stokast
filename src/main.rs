@@ -440,8 +440,8 @@ fn main() -> ! {
                 if any_lfo_upd {
                     for (i, upd) in lfo_upd.iter_mut().enumerate() {
                         if let Some(value) = upd.take() {
-                            if let Err(e) = dac.set_channel(i.into(), value, cs) {
-                                error!("dac.set_channel: {:?}", e);
+                            if let Err(_e) = dac.set_channel(i.into(), value, cs) {
+                                // error!("dac.set_channel: {:?}", e);
                             }
                         }
                     }
