@@ -407,8 +407,8 @@ impl State {
                 let mut segs = Segs4::new();
 
                 let playhead = self.playhead();
-                segs.0[1] = Seg::from(playhead as u8 % 10) as u8;
-                segs.0[2] = Seg::from((playhead as u8 / 10) % 10) as u8;
+                segs.0[2] = Seg::from(playhead as u8 % 10) as u8;
+                segs.0[3] = Seg::from((playhead as u8 / 10) % 10) as u8;
 
                 // Loop animation over 6 frames synced on playhead.
                 const LOOP: [u8; 6] = [
@@ -422,8 +422,8 @@ impl State {
 
                 let li = playhead % 6;
                 let c = LOOP[li];
-                segs.0[0] = c;
-                segs.0[3] = c;
+                segs.0[1] = c;
+                segs.0[4] = c;
 
                 segs
             }
@@ -459,10 +459,10 @@ impl State {
 
                 let mut segs = Segs4::new();
 
-                segs.0[0] = Seg::from(s % 10) as u8;
-                segs.0[1] = Seg::from((s / 10) % 10) as u8;
-                segs.0[2] = Seg::from(l % 10) as u8;
-                segs.0[3] = Seg::from((l / 10) % 10) as u8;
+                segs.0[1] = Seg::from(s % 10) as u8;
+                segs.0[2] = Seg::from((s / 10) % 10) as u8;
+                segs.0[3] = Seg::from(l % 10) as u8;
+                segs.0[4] = Seg::from((l / 10) % 10) as u8;
 
                 segs
             }
