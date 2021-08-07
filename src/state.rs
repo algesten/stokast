@@ -156,7 +156,7 @@ impl State {
         let mut regenerate = false;
 
         for oper in todo {
-            info!("Handle: {:?}", oper);
+            trace!("Handle: {:?}", oper);
 
             match oper {
                 Oper::Tick(interval) => {
@@ -172,10 +172,15 @@ impl State {
                         self.playhead + 1
                     };
 
+                    info!(
+                        "Tick playhead: {} tick_count: {}",
+                        self.playhead, self.tick_count
+                    );
                     self.update_track_playhead();
                 }
 
                 Oper::Reset => {
+                    info!("Reset");
                     // Reset might affect the tempo detection.
                     self.tempo.reset();
 
@@ -368,9 +373,9 @@ impl State {
 
         for i in 0..TRACK_COUNT {
             self.track_playhead[i] = match self.track_sync[i] {
-                TrackSync::Sync => playhead % plen.min(parm.tracks[0].length as usize),
-                TrackSync::Free => (self.playhead % parm.tracks[0].length as u64) as usize,
-                TrackSync::Loop => (self.tick_count % parm.tracks[0].length as u64) as usize,
+                TrackSync::Sync => playhead % plen.min(parm.tracks[i].length as usize),
+                TrackSync::Free => (self.playhead % parm.tracks[i].length as u64) as usize,
+                TrackSync::Loop => (self.tick_count % parm.tracks[i].length as u64) as usize,
             };
         }
     }
