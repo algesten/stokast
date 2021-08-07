@@ -92,7 +92,7 @@ where
             GateSet::Set => {
                 self.pin.set_hilo(false);
 
-                let duty_count = ((predicted.count() - now.count()) * self.duty_percent) / 100;
+                let duty_count = (predicted.count() * self.duty_percent) / 100;
 
                 let mut clear_at = now.clone();
                 clear_at.count += duty_count;
