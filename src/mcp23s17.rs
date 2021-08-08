@@ -16,12 +16,14 @@
 
 use alg::SetBit;
 use bsp::hal::gpio::{Output, GPIO};
+use core::fmt::Debug;
 use cortex_m::interrupt::CriticalSection;
 use embedded_hal::blocking::spi::{Transfer, Write};
 use embedded_hal::digital::v2::OutputPin;
 use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
+use crate::error::Error;
 use crate::lock::Lock;
 
 /// 16-bit I/O expander.
@@ -46,7 +48,7 @@ where
     I: Write<u16, Error = E>,
     P: Pin,
 {
-    fn configure(&mut self, params: Builder, cs: &CriticalSection) -> Result<(), E> {
+    fn configure(&mut self, params: Builder, cs: &CriticalSection) -> Result<(), Error> {
         // high when not active.
         self.cs.set_high().unwrap();
 
@@ -68,7 +70,7 @@ where
         Ok(())
     }
 
-    pub fn verify_config(&mut self, cs: &CriticalSection) -> Result<(), E> {
+    pub fn verify_config(&mut self, cs: &CriticalSection) -> Result<(), Error> {
         let x = self.transfer(address(false, 0x0a), 0, cs)?;
         assert_eq!(x, 0b0100_0010_0100_0010, "Mirror and INTPOL");
 
@@ -100,14 +102,21 @@ where
         Ok(())
     }
 
-    fn transfer(&mut self, addr: u16, value: u16, cs: &CriticalSection) -> Result<u16, E> {
+    fn transfer(&mut self, addr: u16, value: u16, cs: &CriticalSection) -> Result<u16, Error> {
         let mut buf = [addr, value];
         let mut spi = self.spi_lock.get(cs);
 
         trace!("spi transfer out: {:0x?}", buf);
 
         self.cs.set_low().unwrap();
-        spi.transfer(&mut buf)?;
+
+        // This "if let Err" is a hack because I fail to figure out the exact type signature
+        // of E. This should be improved.
+        if let Err(_e) = spi.transfer(&mut buf) {
+            error!("SPI transfer failed");
+            return Err(Error::Other("SPI transfer failed"));
+        }
+
         self.cs.set_high().unwrap();
 
         trace!("spi transfer in: {:0x?}", buf[1]);
@@ -116,12 +125,12 @@ where
     }
 
     /// Read the inputs. Data organization is: `[A7..A0, B7..B0]`
-    pub fn read_inputs(&mut self, cs: &CriticalSection) -> Result<u16, E> {
+    pub fn read_inputs(&mut self, cs: &CriticalSection) -> Result<u16, Error> {
         self.transfer(address(false, 0x12), 0, cs)
     }
 
     /// Read the interrupt capture. Data organization is: `[A7..A0, B7..B0]`
-    pub fn read_int_cap(&mut self, cs: &CriticalSection) -> Result<u16, E> {
+    pub fn read_int_cap(&mut self, cs: &CriticalSection) -> Result<u16, Error> {
         self.transfer(address(false, 0x10), 0, cs)
     }
 }
@@ -153,7 +162,11 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub fn build<I, E, P>(self, spi_lock: Lock<I>, cs: GPIO<P, Output>) -> Result<Mcp23S17<I, P>, E>
+    pub fn build<I, E, P>(
+        self,
+        spi_lock: Lock<I>,
+        cs: GPIO<P, Output>,
+    ) -> Result<Mcp23S17<I, P>, Error>
     where
         I: Transfer<u16, Error = E>,
         I: Write<u16, Error = E>,

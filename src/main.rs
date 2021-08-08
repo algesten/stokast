@@ -21,6 +21,7 @@ use imxrt_hal::gpio::{Input, Output};
 use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
+use crate::error::Error;
 use crate::input::Inputs;
 use crate::input::PinDigitalIn;
 use crate::inter::InterruptConfiguration;
@@ -32,6 +33,7 @@ use crate::output::Outputs;
 use crate::state::OperQueue;
 use crate::state::State;
 
+mod error;
 mod input;
 mod inter;
 mod lfo;
@@ -53,7 +55,16 @@ static mut LED_PCB: Option<LedPcbPin> = None;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
-    assert!(logging::init().is_ok());
+    if let Err(e) = do_run() {
+        error!("main failed: {:?}", e);
+    }
+    loop {}
+}
+
+fn do_run() -> Result<(), Error> {
+    // this fails if there is no USB connected. To get it working,
+    // connect the USB and power cycle.
+    let _ = logging::init();
 
     let mut p = bsp::Peripherals::take().unwrap();
     let mut cp = cortex_m::Peripherals::take().unwrap();
@@ -124,11 +135,9 @@ fn main() -> ! {
     let mut spi_io = spi4_builder.build(pins.p11, pins.p12, pins.p13);
 
     // // From datasheet for MCP23S17 we see that max speed is 10MHz
-    spi_io
-        .set_clock_speed(bsp::hal::spi::ClockSpeed(5_000_000))
-        .unwrap();
+    spi_io.set_clock_speed(bsp::hal::spi::ClockSpeed(5_000_000))?;
 
-    spi_io.set_mode(spi::MODE_0).unwrap();
+    spi_io.set_mode(spi::MODE_0)?;
     spi_io.clear_fifo();
 
     let spi_lock = Lock::new(spi_io);
@@ -139,15 +148,13 @@ fn main() -> ! {
     let mut io_ext1 = mcp23s17::builder()
         .enable_all_interrupts(mcp23s17::InterruptMode::CompareAgainstPrevious)
         .set_all_pull_up(true)
-        .build(spi_lock.clone(), spi_cs_ext1)
-        .unwrap();
+        .build(spi_lock.clone(), spi_cs_ext1)?;
     let mut io_ext2 = mcp23s17::builder()
         .enable_all_interrupts(mcp23s17::InterruptMode::CompareAgainstPrevious)
         .set_all_pull_up(true)
-        .build(spi_lock.clone(), spi_cs_ext2)
-        .unwrap();
+        .build(spi_lock.clone(), spi_cs_ext2)?;
 
-    fn verify<E, I, P>(cs: &CriticalSection, io_ext: &mut Mcp23S17<I, P>) -> Result<(), E>
+    fn verify<E, I, P>(cs: &CriticalSection, io_ext: &mut Mcp23S17<I, P>) -> Result<(), Error>
     where
         I: Transfer<u16, Error = E>,
         I: Write<u16, Error = E>,
@@ -160,15 +167,10 @@ fn main() -> ! {
     }
 
     cortex_m::interrupt::free(|cs| {
-        if let Err(e) = verify(cs, &mut io_ext1) {
-            return Err(e);
-        }
-        if let Err(e) = verify(cs, &mut io_ext2) {
-            return Err(e);
-        }
-        Ok(())
-    })
-    .unwrap();
+        verify(cs, &mut io_ext1)?;
+        verify(cs, &mut io_ext2)?;
+        Ok::<_, Error>(())
+    })?;
 
     // How to configure an ADC
     // let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
@@ -187,8 +189,7 @@ fn main() -> ! {
     let mut i2c = i2c1_builder.build(pins.p19, pins.p18);
 
     // From datasheet MAX6958, serial max speed is 400KHz
-    i2c.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz400)
-        .unwrap();
+    i2c.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz400)?;
 
     // let mut rnd = Rnd::new(1);
     let i2c_lock = Lock::new(i2c);
@@ -197,14 +198,16 @@ fn main() -> ! {
     let mut dac = mcp4728::Mcp4728::new(i2c_lock.clone());
 
     cortex_m::interrupt::free(|cs| {
-        seg.set_shutdown(false, cs).unwrap();
+        seg.set_shutdown(false, cs)?;
 
         // At intensity 40 + scan limit 0123, we get 2mA per led segment.
         // 8 segments * 2mA x 4 chars = 64mA for the display.
-        seg.set_scan_limit(max6958::ScanLimit::Digit0123, cs)
-            .unwrap();
-        seg.set_intensity(40, cs).unwrap();
-    });
+        seg.set_scan_limit(max6958::ScanLimit::Digit0123, cs)?;
+
+        seg.set_intensity(40, cs)?;
+
+        Ok::<_, Error>(())
+    })?;
 
     // Let's assume the u16 is transferred as:
     // [A7, A6, A5, A4,   A3, A2, A1, A0,   B7, B6, B5, B4,   B3, B2, B1, B0]
@@ -453,7 +456,7 @@ fn main() -> ! {
                     if flags.0 {
                         flags.0 = false;
 
-                        let x = !io_ext1.read_inputs(cs).unwrap();
+                        let x = !io_ext1.read_inputs(cs)?;
 
                         if x != io_ext1_read {
                             debug!("ext1 reading: {:016b}", x);
@@ -466,7 +469,7 @@ fn main() -> ! {
                     if flags.1 {
                         flags.1 = false;
 
-                        let x = !io_ext2.read_inputs(cs).unwrap();
+                        let x = !io_ext2.read_inputs(cs)?;
 
                         if x != io_ext2_read {
                             debug!("ext2 reading: {:016b}", x);
@@ -477,9 +480,11 @@ fn main() -> ! {
                 }
 
                 if display_update {
-                    seg.set_segs(last_segs, cs).unwrap();
+                    seg.set_segs(last_segs, cs)?;
                 }
-            });
+
+                Ok::<_, Error>(())
+            })?;
         }
 
         // Read all potential input and turn it into operations.
