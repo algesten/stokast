@@ -9,8 +9,7 @@ use embedded_hal::blocking::i2c::{Write, WriteRead};
 use crate::lock::Lock;
 
 /// 7 bit address, lower three bits are programmable in EEPROM (or by factory), but defaults to 000.
-/// Lowest bit is R/W where 1 means.
-const ADDRESS: u8 = 0b1100_000_0;
+const ADDRESS: u8 = 0b1100_000;
 
 /// "Single write" means updating one channel at a time. There are other
 /// commands that can set all channels in one I2C transaction.
@@ -52,8 +51,6 @@ where
             // [D7 D6 D5 D4 D3 D2 D1 D0]
             (value & 0xff) as u8,
         ];
-
-        info!("{:x?} {:x?}", ADDRESS, bytes);
 
         i2c.write(ADDRESS, bytes)
     }
