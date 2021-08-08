@@ -56,9 +56,10 @@ static mut LED_PCB: Option<LedPcbPin> = None;
 #[cortex_m_rt::entry]
 fn main() -> ! {
     if let Err(e) = do_run() {
-        error!("main failed: {:?}", e);
+        panic!("main failed: {:?}", e);
     }
-    loop {}
+
+    unreachable!();
 }
 
 fn do_run() -> Result<(), Error> {
@@ -501,6 +502,10 @@ fn do_run() -> Result<(), Error> {
 
 #[panic_handler]
 fn panic(p: &core::panic::PanicInfo) -> ! {
+    // since usb debugging requires the interrupts to work, we re-enable them here.
+    // this should be safe since the "main" stack pointer is gone.
+    unsafe { cortex_m::interrupt::enable() };
+
     error!("{:?}", p);
 
     // Might as well take it, we're not going to resume.
