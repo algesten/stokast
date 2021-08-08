@@ -193,6 +193,7 @@ impl State {
                     if self.input_mode == InputMode::Fate {
                         // KABOOM randomize all the things.
                         self.tonight_im_in_the_hands_of_fate();
+                        self.last_action = now;
                     } else {
                         let s = (self.params.seed - SEED_BASE as u32) as i32;
                         let n = s + x as i32;
