@@ -172,9 +172,10 @@ impl State {
                         self.playhead + 1
                     };
 
-                    info!(
+                    trace!(
                         "Tick playhead: {} tick_count: {}",
-                        self.playhead, self.tick_count
+                        self.playhead,
+                        self.tick_count
                     );
                     self.update_track_playhead();
                 }

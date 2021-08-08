@@ -214,12 +214,12 @@ fn do_run() -> Result<(), Error> {
 
     let mut inputs = Inputs {
         // Clock signal in. Inverted.
-        clock: DigitalEdgeInput::new(PinDigitalIn(pin_clk), true),
+        clock: DigitalEdgeInput::new(PinDigitalIn(pin_clk)),
         // Last tick, since we want intervals.
         clock_last: None,
 
         // Reset signal in. Inverted.
-        reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst), true),
+        reset: DigitalEdgeInput::new(PinDigitalIn(pin_rst)),
 
         // ext1 b4 - pin_a
         // ext1 a3 - pin_b
@@ -229,10 +229,10 @@ fn do_run() -> Result<(), Error> {
             0b0000_1000_0000_0000,
         ))),
         // ext1 a4
-        seed_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext1_read, 0b0001_0000_0000_0000),
-            false,
-        ),
+        seed_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext1_read,
+            0b0001_0000_0000_0000,
+        )),
 
         // ext2 b1 - pin_a
         // ext2 b0 - pin_b
@@ -242,10 +242,10 @@ fn do_run() -> Result<(), Error> {
             0b0000_0000_0000_0001,
         )),
         // ext2 b2
-        length_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext2_read, 0b0000_0000_0000_0100),
-            false,
-        ),
+        length_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext2_read,
+            0b0000_0000_0000_0100,
+        )),
 
         // ext1 a1 - pin_a
         // ext1 b5 - pin_b
@@ -255,10 +255,10 @@ fn do_run() -> Result<(), Error> {
             0b0000_0000_0010_0000,
         )),
         // ext1 a2
-        offs1_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext1_read, 0b0000_0100_0000_0000),
-            false,
-        ),
+        offs1_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext1_read,
+            0b0000_0100_0000_0000,
+        )),
         // ext1 b7 - pin_a
         // ext1 a0 - pin_b
         step1: Encoder::new(BitmaskQuadratureSource::new(
@@ -267,10 +267,10 @@ fn do_run() -> Result<(), Error> {
             0b0000_0001_0000_0000,
         )),
         // ext1 b6
-        step1_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext1_read, 0b0000_0000_0100_0000),
-            false,
-        ),
+        step1_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext1_read,
+            0b0000_0000_0100_0000,
+        )),
 
         // ext1 b2 - pin_a
         // ext1 b0 - pin_b
@@ -280,10 +280,10 @@ fn do_run() -> Result<(), Error> {
             0b0000_0000_0000_0001,
         )),
         // ext1 b1
-        offs2_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext1_read, 0b0000_0000_0000_0010),
-            false,
-        ),
+        offs2_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext1_read,
+            0b0000_0000_0000_0010,
+        )),
         // ext1 a5 - pin_a
         // ext1 a6 - pin_b
         step2: Encoder::new(BitmaskQuadratureSource::new(
@@ -292,10 +292,10 @@ fn do_run() -> Result<(), Error> {
             0b0100_0000_0000_0000,
         )),
         // ext1 a7
-        step2_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext1_read, 0b1000_0000_0000_0000),
-            false,
-        ),
+        step2_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext1_read,
+            0b1000_0000_0000_0000,
+        )),
 
         // ext2 b5 - pin_a
         // ext2 b4 - pin_b
@@ -305,10 +305,10 @@ fn do_run() -> Result<(), Error> {
             0b0000_0000_0001_0000,
         )),
         // ext2 a1
-        offs3_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext2_read, 0b0000_0010_0000_0000),
-            false,
-        ),
+        offs3_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext2_read,
+            0b0000_0010_0000_0000,
+        )),
         // ext2 b7 - pin_a
         // ext2 b6 - pin_b
         step3: Encoder::new(BitmaskQuadratureSource::new(
@@ -317,10 +317,10 @@ fn do_run() -> Result<(), Error> {
             0b0000_0000_0100_0000,
         )),
         // ext2 a0
-        step3_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext2_read, 0b0000_0001_0000_0000),
-            false,
-        ),
+        step3_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext2_read,
+            0b0000_0001_0000_0000,
+        )),
 
         // ext2 a2 - pin_a
         // ext2 a3 - pin_b
@@ -330,10 +330,10 @@ fn do_run() -> Result<(), Error> {
             0b0000_1000_0000_0000,
         )),
         // ext2 a4
-        offs4_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext2_read, 0b0001_0000_0000_0000),
-            false,
-        ),
+        offs4_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext2_read,
+            0b0001_0000_0000_0000,
+        )),
         // ext2 a5 - pin_a
         // ext2 a6 - pin_b
         step4: Encoder::new(BitmaskQuadratureSource::new(
@@ -342,10 +342,10 @@ fn do_run() -> Result<(), Error> {
             0b0100_0000_0000_0000,
         )),
         // ext2 a7
-        step4_btn: DigitalEdgeInput::new(
-            BitmaskDigitalInput::new(&io_ext2_read, 0b1000_0000_0000_0000),
-            false,
-        ),
+        step4_btn: DigitalEdgeInput::new(BitmaskDigitalInput::new(
+            &io_ext2_read,
+            0b1000_0000_0000_0000,
+        )),
     };
 
     let mut outputs = Outputs {
