@@ -190,7 +190,7 @@ fn do_run() -> Result<(), Error> {
     let mut i2c = i2c1_builder.build(pins.p19, pins.p18);
 
     // From datasheet MAX6958, serial max speed is 400KHz
-    i2c.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz400)?;
+    i2c.set_clock_speed(bsp::hal::i2c::ClockSpeed::KHz100)?;
 
     // let mut rnd = Rnd::new(1);
     let i2c_lock = Lock::new(i2c);
@@ -438,8 +438,8 @@ fn do_run() -> Result<(), Error> {
                 if any_lfo_upd {
                     for (i, upd) in lfo_upd.iter_mut().enumerate() {
                         if let Some(value) = upd.take() {
-                            if let Err(_e) = dac.set_channel(i.into(), value, cs) {
-                                // error!("dac.set_channel: {:?}", e);
+                            if let Err(e) = dac.set_channel(i.into(), value, cs) {
+                                error!("dac.set_channel: {:?}", e);
                             }
                         }
                     }
