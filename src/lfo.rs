@@ -120,9 +120,10 @@ impl Mode {
 
         match self {
             Mode::Random => {
-                let x = offset / (u32::MAX / length as u32);
+                let x = (offset / (u32::MAX / length as u32)) as usize;
+                let bound = x.min(rnd.len());
 
-                let n = rnd[x as usize];
+                let n = rnd[bound];
 
                 (n >> 20) as u16
             }
