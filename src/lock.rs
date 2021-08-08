@@ -47,7 +47,7 @@ impl<T> Clone for Lock<T> {
 /// Locks cannot be dropped. They must life for the entire lifetime of the program.
 impl<T> Drop for Lock<T> {
     fn drop(&mut self) {
-        panic!("Lock instances are not allowed to drop");
+        error!("Lock instances are not allowed to drop");
     }
 }
 
