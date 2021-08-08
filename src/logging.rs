@@ -1,11 +1,11 @@
 //! USB logging support
-use core::cell::RefCell;
-use cortex_m::interrupt::Mutex;
 
 use bsp::hal::ral::usb::USB1;
 use bsp::interrupt;
 use log::LevelFilter;
 use teensy4_bsp as bsp;
+
+use crate::lock::Lock;
 
 /// Specify any logging filters here
 const FILTERS: &[bsp::usb::Filter] = &[
@@ -41,23 +41,23 @@ pub fn init() -> Result<bsp::usb::Reader, bsp::usb::Error> {
 
 /// Setup the USB ISR with the USB poller
 fn setup(poller: bsp::usb::Poller) {
-    static POLLER: Mutex<RefCell<Option<bsp::usb::Poller>>> = Mutex::new(RefCell::new(None));
+    static mut POLLER: Option<Lock<bsp::usb::Poller>> = None;
 
     #[cortex_m_rt::interrupt]
     fn USB_OTG1() {
         cortex_m::interrupt::free(|cs| {
-            POLLER
-                .borrow(cs)
-                .borrow_mut()
-                .as_mut()
-                .map(|poller| poller.poll());
+            let mut poller = unsafe { POLLER.as_mut().unwrap() }.get(cs);
+            poller.poll();
         });
     }
 
-    cortex_m::interrupt::free(|cs| {
-        *POLLER.borrow(cs).borrow_mut() = Some(poller);
-        // Safety: invoked in a critical section that also prepares the ISR
-        // shared memory. ISR memory is ready by the time the ISR runs.
-        unsafe { cortex_m::peripheral::NVIC::unmask(bsp::interrupt::USB_OTG1) };
+    cortex_m::interrupt::free(|_cs| {
+        unsafe {
+            POLLER = Some(Lock::new(poller));
+
+            // Safety: invoked in a critical section that also prepares the ISR
+            // shared memory. ISR memory is ready by the time the ISR runs.
+            cortex_m::peripheral::NVIC::unmask(bsp::interrupt::USB_OTG1);
+        }
     });
 }

@@ -72,7 +72,7 @@ fn do_run() -> Result<(), Error> {
     let mut systick = bsp::SysTick::new(cp.SYST);
 
     // Wait so we don't miss the first log message, crashes etc.
-    systick.delay(3000);
+    systick.delay(1000);
 
     info!("Set clock frequency to: {:?}", ccm::PLL1::ARM_HZ);
 
