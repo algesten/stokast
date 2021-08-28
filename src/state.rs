@@ -342,7 +342,7 @@ impl State {
     /// Update the state with passing time.
     pub fn update_time(&mut self, now: Time<{ CPU_SPEED }>) {
         // Reset back the input mode to the default after a timeout.
-        if self.input_mode != InputMode::Run && now - self.last_action > Time::from_secs(5) {
+        if self.input_mode != InputMode::Run && now - self.last_action > Time::from_secs(30) {
             self.input_mode = InputMode::Run;
         }
 
