@@ -11,20 +11,20 @@ use alg::encoder::Encoder;
 use alg::encoder::EncoderAccelerator;
 use alg::input::{BitmaskDigitalInput, DigitalInput};
 use bsp::hal::ccm;
-use bsp::interrupt;
 use cortex_m::interrupt::CriticalSection;
 use cortex_m::peripheral::DWT;
 use embedded_hal::blocking::spi::{Transfer, Write};
 use embedded_hal::spi;
+use imxrt_hal::gpio::Output;
 use imxrt_hal::gpio::GPIO;
-use imxrt_hal::gpio::{Input, Output};
 use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
 use crate::error::Error;
 use crate::input::Inputs;
 use crate::input::PinDigitalIn;
-use crate::inter::InterruptConfiguration;
+use crate::irq::setup_gpio_interrupts;
+use crate::irq::IoExtReads;
 use crate::lock::Lock;
 use crate::max6958::Segs4;
 use crate::mcp23s17::Mcp23S17;
@@ -36,6 +36,7 @@ use crate::state::State;
 mod error;
 mod input;
 mod inter;
+mod irq;
 mod lfo;
 mod lock;
 mod logging;
@@ -122,16 +123,14 @@ fn do_run() -> Result<(), Error> {
         ccm::spi::PrescalarSelect::LPSPI_PODF_5,
     );
 
-    // Last reading of io_ext1.
+    // Last reading to proces of io_ext1.
     let mut io_ext1_read = 0;
-    // Last reading of io_ext2.
+    // Last reading to process of io_ext2.
     let mut io_ext2_read = 0;
 
     // Flags to indicate that an interrupt has fired that means we are to
     // read io_ext1 or io_ext2 respectively.
-    let io_ext_flags = Lock::new((false, false));
-
-    setup_gpio_interrupts(ext1_irq, ext2_irq, io_ext_flags.clone());
+    let io_ext_reads = Lock::new((IoExtReads::new(), IoExtReads::new()));
 
     let mut spi_io = spi4_builder.build(pins.p11, pins.p12, pins.p13);
 
@@ -172,6 +171,8 @@ fn do_run() -> Result<(), Error> {
         verify(cs, &mut io_ext2)?;
         Ok::<_, Error>(())
     })?;
+
+    setup_gpio_interrupts(ext1_irq, ext2_irq, io_ext1, io_ext2, io_ext_reads.clone());
 
     // How to configure an ADC
     // let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
@@ -414,7 +415,9 @@ fn do_run() -> Result<(), Error> {
         // set to true if we really have an io_ext change. that way
         // we can avoid a gazillion tick() in inputs.tick().
         let mut io_ext_change = false;
-        let flags_ro = io_ext_flags.read();
+        let io_ext_reads_ro = io_ext_reads.read();
+        let got_io_ext1_reads = !io_ext_reads_ro.0.is_empty();
+        let got_io_ext2_reads = !io_ext_reads_ro.1.is_empty();
 
         // Update the display. Only do this 100Hz, if needed
         let mut display_update = false;
@@ -432,7 +435,7 @@ fn do_run() -> Result<(), Error> {
 
         // We want to avoid taking the free lock as much as possible. It costs
         // 8µS to take it, and this way we only take it if we really need to.
-        if any_lfo_upd || flags_ro.0 || flags_ro.1 || display_update {
+        if any_lfo_upd || got_io_ext1_reads || got_io_ext2_reads || display_update {
             //
             cortex_m::interrupt::free(|cs| {
                 if any_lfo_upd {
@@ -444,12 +447,10 @@ fn do_run() -> Result<(), Error> {
                 }
 
                 {
-                    let mut flags = io_ext_flags.get(cs);
+                    let mut reads = io_ext_reads.get(cs);
 
-                    if flags.0 {
-                        flags.0 = false;
-
-                        let x = !io_ext1.read_inputs(cs)?;
+                    if got_io_ext1_reads {
+                        let x = reads.0.remove(0);
 
                         if x != io_ext1_read {
                             debug!("ext1 reading: {:016b}", x);
@@ -459,10 +460,8 @@ fn do_run() -> Result<(), Error> {
                     }
 
                     // interrupt for io_ext2 has fired
-                    if flags.1 {
-                        flags.1 = false;
-
-                        let x = !io_ext2.read_inputs(cs)?;
+                    if got_io_ext2_reads {
+                        let x = reads.1.remove(0);
 
                         if x != io_ext2_read {
                             debug!("ext2 reading: {:016b}", x);
@@ -521,56 +520,4 @@ fn delay(factor: u32) {
     for _ in 0..(factor * 50_000_000) {
         core::hint::spin_loop();
     }
-}
-
-// B1_00 - GPIO2_IO16 - ALT5
-type IoExt1InterruptPin = GPIO<bsp::common::P8, Input>;
-// B1_01 - GPIO2_IO17 - ALT5
-type IoExt2InterruptPin = GPIO<bsp::common::P7, Input>;
-
-pub fn setup_gpio_interrupts(
-    mut pin1: IoExt1InterruptPin,
-    mut pin2: IoExt2InterruptPin,
-    io_ext_flags: Lock<(bool, bool)>,
-) {
-    use crate::inter::Interrupt;
-
-    static mut INT: Option<(IoExt1InterruptPin, IoExt2InterruptPin, Lock<(bool, bool)>)> = None;
-
-    #[cortex_m_rt::interrupt]
-    fn GPIO2_Combined_16_31() {
-        cortex_m::interrupt::free(|cs| {
-            let (pin1, pin2, flags) = unsafe { INT.as_mut().unwrap() };
-
-            let mut flags = flags.get(cs);
-
-            if pin1.is_interrupt_status() {
-                pin1.clear_interrupt_status();
-                flags.0 = true;
-            }
-
-            if pin2.is_interrupt_status() {
-                pin2.clear_interrupt_status();
-                flags.1 = true;
-            }
-        });
-    }
-
-    cortex_m::interrupt::free(|_cs| {
-        info!("setup GPIO interrupts");
-
-        pin1.set_interrupt_configuration(InterruptConfiguration::RisingEdge);
-        pin1.set_interrupt_enable(true);
-        pin1.clear_interrupt_status();
-        pin2.set_interrupt_configuration(InterruptConfiguration::RisingEdge);
-        pin2.set_interrupt_enable(true);
-        pin2.clear_interrupt_status();
-
-        unsafe {
-            INT = Some((pin1, pin2, io_ext_flags));
-        }
-
-        // It just so happens that both pins map to the same interrupt.
-        unsafe { cortex_m::peripheral::NVIC::unmask(bsp::interrupt::GPIO2_Combined_16_31) };
-    });
 }
