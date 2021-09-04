@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use core::fmt;
 use core::mem::ManuallyDrop;
 use core::ops::Deref;

@@ -23,8 +23,6 @@ use teensy4_bsp as bsp;
 use crate::error::Error;
 use crate::input::Inputs;
 use crate::input::PinDigitalIn;
-use crate::irq::setup_gpio_interrupts;
-use crate::irq::IoExtReads;
 use crate::lock::Lock;
 use crate::max6958::Segs4;
 use crate::mcp23s17::Mcp23S17;
@@ -36,7 +34,6 @@ use crate::state::State;
 mod error;
 mod input;
 mod inter;
-mod irq;
 mod lfo;
 mod lock;
 mod logging;
@@ -107,8 +104,8 @@ fn do_run() -> Result<(), Error> {
     let pin_clk = GPIO::new(pins.p21);
 
     // Interrupt pints for ext1 and ext2
-    let ext1_irq = GPIO::new(pins.p8);
-    let ext2_irq = GPIO::new(pins.p7);
+    // let ext1_irq = GPIO::new(pins.p8);
+    // let ext2_irq = GPIO::new(pins.p7);
 
     let mut led_pcb = GPIO::new(pins.p5).output();
     led_pcb.set();
@@ -127,10 +124,6 @@ fn do_run() -> Result<(), Error> {
     let mut io_ext1_read = 0;
     // Last reading to process of io_ext2.
     let mut io_ext2_read = 0;
-
-    // Flags to indicate that an interrupt has fired that means we are to
-    // read io_ext1 or io_ext2 respectively.
-    let io_ext_reads = Lock::new((IoExtReads::new(), IoExtReads::new()));
 
     let mut spi_io = spi4_builder.build(pins.p11, pins.p12, pins.p13);
 
@@ -169,10 +162,10 @@ fn do_run() -> Result<(), Error> {
     cortex_m::interrupt::free(|cs| {
         verify(cs, &mut io_ext1)?;
         verify(cs, &mut io_ext2)?;
+        io_ext1_read = io_ext1.read_inputs(cs)?;
+        io_ext2_read = io_ext2.read_inputs(cs)?;
         Ok::<_, Error>(())
     })?;
-
-    setup_gpio_interrupts(ext1_irq, ext2_irq, io_ext1, io_ext2, io_ext_reads.clone());
 
     // How to configure an ADC
     // let (adc1_builder, _) = p.adc.clock(&mut p.ccm.handle);
@@ -357,6 +350,7 @@ fn do_run() -> Result<(), Error> {
     let mut last_time_update = start;
     let mut last_display_update = start;
     let mut last_segs = Segs4::new();
+    let mut last_ext_read = clock.now();
 
     let mut state = State::new();
 
@@ -415,9 +409,6 @@ fn do_run() -> Result<(), Error> {
         // set to true if we really have an io_ext change. that way
         // we can avoid a gazillion tick() in inputs.tick().
         let mut io_ext_change = false;
-        let io_ext_reads_ro = io_ext_reads.read();
-        let got_io_ext1_reads = !io_ext_reads_ro.0.is_empty();
-        let got_io_ext2_reads = !io_ext_reads_ro.1.is_empty();
 
         // Update the display. Only do this 100Hz, if needed
         let mut display_update = false;
@@ -433,38 +424,36 @@ fn do_run() -> Result<(), Error> {
             }
         }
 
+        let do_ext_read = now - last_ext_read > Time::from_micros(300);
+        if do_ext_read {
+            last_ext_read = now;
+        }
+
         // We want to avoid taking the free lock as much as possible. It costs
         // 8µS to take it, and this way we only take it if we really need to.
-        if any_lfo_upd || got_io_ext1_reads || got_io_ext2_reads || display_update {
-            //
+        if any_lfo_upd || display_update || do_ext_read {
             cortex_m::interrupt::free(|cs| {
-                if any_lfo_upd {
-                    dac.set_channels(&lfo_upd, cs)?;
-                }
-
-                {
-                    let mut reads = io_ext_reads.get(cs);
-
-                    if got_io_ext1_reads {
-                        let x = reads.0.remove(0);
-
+                //
+                if do_ext_read {
+                    {
+                        let x = io_ext1.read_inputs(cs)?;
                         if x != io_ext1_read {
-                            debug!("ext1 reading: {:016b}", x);
                             io_ext1_read = x;
                             io_ext_change = true;
                         }
                     }
 
-                    // interrupt for io_ext2 has fired
-                    if got_io_ext2_reads {
-                        let x = reads.1.remove(0);
-
+                    {
+                        let x = io_ext2.read_inputs(cs)?;
                         if x != io_ext2_read {
-                            debug!("ext2 reading: {:016b}", x);
                             io_ext2_read = x;
                             io_ext_change = true;
                         }
                     }
+                }
+
+                if any_lfo_upd {
+                    dac.set_channels(&lfo_upd, cs)?;
                 }
 
                 if display_update {
