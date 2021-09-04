@@ -42,23 +42,31 @@ pub fn setup_gpio_interrupts(
 
             if pin1.is_interrupt_status() {
                 pin1.clear_interrupt_status();
-                let x = !io_ext1.read_inputs(cs).unwrap();
+                let x = !io_ext1.read_int_cap(cs).unwrap();
+                let y = !io_ext1.read_inputs(cs).unwrap();
 
                 let did_change = reads.0.last().map(|l| *l == x).unwrap_or(true);
-
                 if did_change {
                     reads.0.push(x);
+                }
+
+                if y != x {
+                    reads.0.push(y);
                 }
             }
 
             if pin2.is_interrupt_status() {
                 pin2.clear_interrupt_status();
-                let x = !io_ext2.read_inputs(cs).unwrap();
+                let x = !io_ext2.read_int_cap(cs).unwrap();
+                let y = !io_ext2.read_inputs(cs).unwrap();
 
                 let did_change = reads.1.last().map(|l| *l == x).unwrap_or(true);
-
                 if did_change {
                     reads.1.push(x);
+                }
+
+                if y != x {
+                    reads.1.push(y);
                 }
             }
         });
