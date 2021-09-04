@@ -54,6 +54,7 @@ pub struct Gate<H> {
     pin: H,
     duty_percent: i64,
     clear_at: Option<Time<{ CPU_SPEED }>>,
+    high: bool,
 }
 
 impl<H> Gate<H>
@@ -65,7 +66,12 @@ where
             pin,
             duty_percent: duty_percent as i64,
             clear_at: None,
+            high: false,
         }
+    }
+
+    pub fn is_high(&self) -> bool {
+        self.high
     }
 
     /// Tick to drive the gates. Whether to set, clear or retain the gate state.
@@ -85,12 +91,14 @@ where
                     if now >= clear_at {
                         self.clear_at.take();
                         self.pin.set_hilo(true);
+                        self.high = false;
                     }
                 }
             }
 
             GateSet::Set => {
                 self.pin.set_hilo(false);
+                self.high = true;
 
                 let duty_count = (predicted.count() * self.duty_percent) / 100;
 
@@ -101,6 +109,7 @@ where
 
             GateSet::Clear => {
                 self.pin.set_hilo(true);
+                self.high = false;
 
                 self.clear_at.take();
             }

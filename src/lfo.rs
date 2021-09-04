@@ -14,6 +14,7 @@ pub struct Lfo {
     offset: u32,
     prev: u16,
     pub mode: Mode,
+    gate_high: bool,
 
     rnd: RndStep,
     length: u8,
@@ -37,6 +38,7 @@ impl Default for Lfo {
             offset: 0,
             prev: 0,
             mode: Mode::Random,
+            gate_high: false,
             rnd: RndStep([0; 64]),
             length: 2,
             last: 0,
@@ -49,7 +51,7 @@ impl Lfo {
     pub fn set_offset(&mut self, offset: u32) {
         self.offset = offset;
 
-        self.update();
+        self.update(false);
     }
 
     pub fn set_seed_length(&mut self, rnd_seed: u32, length: u8) {
@@ -60,7 +62,7 @@ impl Lfo {
             self.rnd.0[i] = rnd.next();
         }
 
-        self.update();
+        self.update(false);
     }
 
     pub fn set_mode(&mut self, d: i8) {
@@ -72,14 +74,31 @@ impl Lfo {
 
         self.mode = n.into();
 
-        self.update();
+        self.update(false);
     }
 
-    fn update(&mut self) {
-        let n = self.mode.output(self.offset, &self.rnd.0, self.length);
-        if n != self.last {
-            self.last = n;
+    pub fn set_gate_high(&mut self, high: bool) {
+        if self.gate_high != high {
+            self.update(!self.gate_high && high);
+            self.gate_high = high;
+        }
+    }
+
+    fn update(&mut self, gate_rise: bool) {
+        if self.mode == Mode::Random {
+            // Random mode is tied to gate changing to high.
+            if !gate_rise {
+                return;
+            }
+            let n = self.mode.output(self.offset, &self.rnd.0, self.length);
             self.next = Some(n);
+        } else {
+            let n = self.mode.output(self.offset, &self.rnd.0, self.length);
+
+            if n != self.last {
+                self.last = n;
+                self.next = Some(n);
+            }
         }
     }
 

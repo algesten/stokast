@@ -489,6 +489,12 @@ fn do_run() -> Result<(), Error> {
         // Update output gates.
         outputs.tick(now, &state);
 
+        // Propagate output gate states to LFOs.
+        state.lfo[0].set_gate_high(outputs.gate1.is_high());
+        state.lfo[1].set_gate_high(outputs.gate2.is_high());
+        state.lfo[2].set_gate_high(outputs.gate3.is_high());
+        state.lfo[3].set_gate_high(outputs.gate4.is_high());
+
         loop_count += 1;
     }
 }
