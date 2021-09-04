@@ -403,7 +403,7 @@ fn do_run() -> Result<(), Error> {
             state.update_time(now);
         }
 
-        let mut lfo_upd = [
+        let lfo_upd = [
             state.lfo[0].tick(),
             state.lfo[1].tick(),
             state.lfo[2].tick(),
@@ -439,11 +439,7 @@ fn do_run() -> Result<(), Error> {
             //
             cortex_m::interrupt::free(|cs| {
                 if any_lfo_upd {
-                    for (i, upd) in lfo_upd.iter_mut().enumerate() {
-                        if let Some(value) = upd.take() {
-                            dac.set_channel(i.into(), value, cs)?;
-                        }
-                    }
+                    dac.set_channels(&lfo_upd, cs)?;
                 }
 
                 {

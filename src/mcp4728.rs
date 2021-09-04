@@ -4,54 +4,60 @@
 //! Datasheet here: <https://ww1.microchip.com/downloads/en/DeviceDoc/22187E.pdf>
 
 use cortex_m::interrupt::CriticalSection;
-use embedded_hal::blocking::i2c::{Write, WriteRead};
+use embedded_hal::blocking::i2c::{Read, Write};
 
 use crate::lock::Lock;
 
 /// 7 bit address, lower three bits are programmable in EEPROM (or by factory), but defaults to 000.
 const ADDRESS: u8 = 0b1100_000;
 
-/// "Single write" means updating one channel at a time. There are other
-/// commands that can set all channels in one I2C transaction.
-/// Lowest three bits are [DAC1, DAC0, UDAC]
-///
-/// [DAC1, DAC0] are two bits addressing the 4 channels.
-/// [UDAC] is an inverted "latch bit". 0 means update port straight away.
-const SINGLE_WRITE: u8 = 0b01011_000;
-
 pub struct Mcp4728<I> {
     i2c: Lock<I>,
+    values: [u16; 4],
 }
 
 impl<I, E> Mcp4728<I>
 where
     I: Write<Error = E>,
-    I: WriteRead<Error = E>,
+    I: Read<Error = E>,
 {
     pub fn new(i2c: Lock<I>) -> Self {
-        Mcp4728 { i2c }
+        Mcp4728 {
+            i2c,
+            values: [0; 4],
+        }
     }
 
-    /// Set the output value of a single DAC channel.
-    pub fn set_channel(
+    /// Set the output values for all 4 channels.
+    pub fn set_channels(
         &mut self,
-        channel: usize,
-        value: u16,
+        update: &[Option<u16>; 4],
         cs: &CriticalSection,
     ) -> Result<(), E> {
-        // debug!("Set channel ({}): {}", channel, value);
-        assert!(value <= 4095);
+        for (i, u) in update.iter().enumerate() {
+            if let Some(u) = u {
+                assert!(*u <= 4095);
+                self.values[i] = *u;
+            }
+        }
 
+        // Always write all 4 channels. The "single write" command seems broken in this ADC.
         let mut i2c = self.i2c.get(cs);
+        let v = &self.values;
         let bytes = &[
-            // [0 1 0 1 1 DAC1 DAC0 UDAC]
-            SINGLE_WRITE | ((channel as u8) << 1),
-            // [VREF PD1 PD0 Gx D11 D10 D9 D8] (for VREF, PD1, PD0 and Gx we use 0)
-            (value >> 8) as u8,
-            // [D7 D6 D5 D4 D3 D2 D1 D0]
-            (value & 0xff) as u8,
+            // [0 0 PD1 PD0 D11 D10 D9 D8], [D7 D6 D5 D4 D3 D2 D1 D0] // for PD1 and PD0 we use 0
+            (v[0] >> 8) as u8,
+            (v[0] & 0xff) as u8,
+            (v[1] >> 8) as u8,
+            (v[1] & 0xff) as u8,
+            (v[2] >> 8) as u8,
+            (v[2] & 0xff) as u8,
+            (v[3] >> 8) as u8,
+            (v[3] & 0xff) as u8,
         ];
 
-        i2c.write(ADDRESS, bytes)
+        i2c.write(ADDRESS, bytes)?;
+
+        Ok(())
     }
 }
