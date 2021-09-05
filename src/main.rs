@@ -254,11 +254,11 @@ fn do_run() -> Result<(), Error> {
 
         // ext1 b7 - pin_a
         // ext1 a0 - pin_b
-        step1: Encoder::new(BitmaskQuadratureSource::new(
+        step1: EncoderAccelerator::new(Encoder::new(BitmaskQuadratureSource::new(
             &io_ext1_read,
             0b0000_0000_1000_0000,
             0b0000_0001_0000_0000,
-        )),
+        ))),
         // ext1 b6
         step1_btn: BitmaskDigitalInput::new(&io_ext1_read, 0b0000_0000_0100_0000)
             .debounce()
@@ -278,11 +278,11 @@ fn do_run() -> Result<(), Error> {
 
         // ext1 a5 - pin_a
         // ext1 a6 - pin_b
-        step2: Encoder::new(BitmaskQuadratureSource::new(
+        step2: EncoderAccelerator::new(Encoder::new(BitmaskQuadratureSource::new(
             &io_ext1_read,
             0b0010_0000_0000_0000,
             0b0100_0000_0000_0000,
-        )),
+        ))),
         // ext1 a7
         step2_btn: BitmaskDigitalInput::new(&io_ext1_read, 0b1000_0000_0000_0000)
             .debounce()
@@ -302,11 +302,11 @@ fn do_run() -> Result<(), Error> {
 
         // ext2 b7 - pin_a
         // ext2 b6 - pin_b
-        step3: Encoder::new(BitmaskQuadratureSource::new(
+        step3: EncoderAccelerator::new(Encoder::new(BitmaskQuadratureSource::new(
             &io_ext2_read,
             0b0000_0000_1000_0000,
             0b0000_0000_0100_0000,
-        )),
+        ))),
         // ext2 a0
         step3_btn: BitmaskDigitalInput::new(&io_ext2_read, 0b0000_0001_0000_0000)
             .debounce()
@@ -326,11 +326,11 @@ fn do_run() -> Result<(), Error> {
 
         // ext2 a5 - pin_a
         // ext2 a6 - pin_b
-        step4: Encoder::new(BitmaskQuadratureSource::new(
+        step4: EncoderAccelerator::new(Encoder::new(BitmaskQuadratureSource::new(
             &io_ext2_read,
             0b0010_0000_0000_0000,
             0b0100_0000_0000_0000,
-        )),
+        ))),
         // ext2 a7
         step4_btn: BitmaskDigitalInput::new(&io_ext2_read, 0b1000_0000_0000_0000)
             .debounce()

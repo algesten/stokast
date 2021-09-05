@@ -178,6 +178,53 @@ where
             }
         }
 
+        // Track steps
+        // These must be above the io_ext_change line because of the accelerator.
+        {
+            let x = self.step1.tick(now);
+            if x != 0 {
+                todo.push(Oper::Steps(0, x));
+            }
+
+            let e = self.step1_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::StepsClick(0));
+            }
+        }
+        {
+            let x = self.step2.tick(now);
+            if x != 0 {
+                todo.push(Oper::Steps(1, x));
+            }
+
+            let e = self.step2_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::StepsClick(1));
+            }
+        }
+        {
+            let x = self.step3.tick(now);
+            if x != 0 {
+                todo.push(Oper::Steps(2, x));
+            }
+
+            let e = self.step3_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::StepsClick(2));
+            }
+        }
+        {
+            let x = self.step4.tick(now);
+            if x != 0 {
+                todo.push(Oper::Steps(3, x));
+            }
+
+            let e = self.step4_btn.tick(now);
+            if let Some(Edge::Rising(_)) = e {
+                todo.push(Oper::StepsClick(3));
+            }
+        }
+
         // All below this line is about io_ext chip changes. Early return if there are no changes.
         if !io_ext_change {
             return;
@@ -248,52 +295,6 @@ where
             let e = self.offs4_btn.tick(now);
             if let Some(Edge::Rising(_)) = e {
                 todo.push(Oper::OffsetClick(3));
-            }
-        }
-
-        // Track steps
-        {
-            let x = self.step1.tick(now);
-            if x != 0 {
-                todo.push(Oper::Steps(0, x));
-            }
-
-            let e = self.step1_btn.tick(now);
-            if let Some(Edge::Rising(_)) = e {
-                todo.push(Oper::StepsClick(0));
-            }
-        }
-        {
-            let x = self.step2.tick(now);
-            if x != 0 {
-                todo.push(Oper::Steps(1, x));
-            }
-
-            let e = self.step2_btn.tick(now);
-            if let Some(Edge::Rising(_)) = e {
-                todo.push(Oper::StepsClick(1));
-            }
-        }
-        {
-            let x = self.step3.tick(now);
-            if x != 0 {
-                todo.push(Oper::Steps(2, x));
-            }
-
-            let e = self.step3_btn.tick(now);
-            if let Some(Edge::Rising(_)) = e {
-                todo.push(Oper::StepsClick(2));
-            }
-        }
-        {
-            let x = self.step4.tick(now);
-            if x != 0 {
-                todo.push(Oper::Steps(3, x));
-            }
-
-            let e = self.step4_btn.tick(now);
-            if let Some(Edge::Rising(_)) = e {
-                todo.push(Oper::StepsClick(3));
             }
         }
     }
