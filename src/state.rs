@@ -16,15 +16,24 @@ use crate::CPU_SPEED;
 
 pub const TRACK_COUNT: usize = 4;
 
+/// How long to wait before the screen resume the "normal" view.
+const INPUT_MODE_TIMEOUT: Time<{ CPU_SPEED }> = Time::from_secs(30);
+
+/// How long to show an override input.
+const OVERRIDE_INPUT_TIMEOUT: Time<{ CPU_SPEED }> = Time::from_millis(500);
+
+#[derive(Debug, Default, Clone)]
+pub struct InputModeAtTime<const X: u32>(InputMode, Time<X>);
+
 /// App state
 #[derive(Debug, Default, Clone)]
 pub struct State {
     /// Current input mode.
-    pub input_mode: InputMode,
+    pub input_mode: InputModeAtTime<{ CPU_SPEED }>,
 
-    /// Time when last user action happened. This is so we can
-    /// switch back to the Run mode once left idle for a bit.
-    pub last_action: Time<{ CPU_SPEED }>,
+    /// If there is a temporary override. Used for showing
+    /// instant user feedback that goes away straight away.
+    pub override_input_mode: Option<InputModeAtTime<{ CPU_SPEED }>>,
 
     /// Generative parameters for generated.
     pub params: Params<{ TRACK_COUNT }>,
@@ -89,6 +98,9 @@ pub enum InputMode {
     Steps(usize), // (length, steps)
     /// Which track sync mode.
     TrackSync(usize),
+
+    /// If we are muting a channel.
+    Mute(bool),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,7 +208,7 @@ impl State {
                     if self.input_mode == InputMode::Fate {
                         // KABOOM randomize all the things.
                         self.tonight_im_in_the_hands_of_fate();
-                        self.last_action = now;
+                        self.input_mode.1 = now;
                     } else {
                         let s = (self.params.seed - SEED_BASE as u32) as i32;
                         let n = s + x as i32;
@@ -237,7 +249,7 @@ impl State {
                 Oper::Offset(tr, x) => {
                     if self.input_mode == InputMode::Lfo(tr) {
                         self.lfo[tr].set_mode(x);
-                        self.last_action = now;
+                        self.input_mode.1 = now;
                         regenerate = true;
                     } else {
                         let t = &mut self.params.tracks[tr];
@@ -274,7 +286,7 @@ impl State {
                         let mut n = self.track_sync[tr] as i8;
                         n += x;
                         self.track_sync[tr] = n.into();
-                        self.last_action = now;
+                        self.input_mode.1 = now;
                         // no need to regenerate here.
                     } else {
                         let t = &mut self.params.tracks[tr];
@@ -319,6 +331,8 @@ impl State {
 
                 Oper::StepsClick(tr) => {
                     self.mute[tr] = !self.mute[tr];
+                    self.override_input_mode =
+                        Some(InputModeAtTime(InputMode::Mute(self.mute[tr]), now));
                 }
             }
         }
@@ -328,8 +342,7 @@ impl State {
         }
 
         if let Some(input_mode) = input_mode {
-            self.input_mode = input_mode;
-            self.last_action = now;
+            self.input_mode = InputModeAtTime(input_mode, now);
         }
     }
 
@@ -340,9 +353,16 @@ impl State {
 
     /// Update the state with passing time.
     pub fn update_time(&mut self, now: Time<{ CPU_SPEED }>) {
+        // Reset back the override input mode if there is one.
+        if let Some(o) = &self.override_input_mode {
+            if now - o.1 > OVERRIDE_INPUT_TIMEOUT {
+                self.override_input_mode = None;
+            }
+        }
+
         // Reset back the input mode to the default after a timeout.
-        if self.input_mode != InputMode::Run && now - self.last_action > Time::from_secs(30) {
-            self.input_mode = InputMode::Run;
+        if self.input_mode != InputMode::Run && now - self.input_mode.1 > INPUT_MODE_TIMEOUT {
+            self.input_mode = InputModeAtTime(InputMode::Run, now);
         }
 
         let offset = self.track_offset(now);
@@ -408,7 +428,13 @@ impl State {
 
     /// Represent the current state on the segment display.
     pub fn to_display(&self) -> Segs4 {
-        match &self.input_mode {
+        let mode = self
+            .override_input_mode
+            .as_ref()
+            .map(|x| &x.0)
+            .unwrap_or(&self.input_mode.0);
+
+        match mode {
             InputMode::Run => {
                 let mut segs = Segs4::new();
 
@@ -477,6 +503,15 @@ impl State {
                 TrackSync::Sync => "sync",
                 TrackSync::Free => "free",
                 TrackSync::Loop => "loop",
+            }
+            .into(),
+
+            InputMode::Mute(on) => {
+                if *on {
+                    "off "
+                } else {
+                    " on "
+                }
             }
             .into(),
         }
@@ -557,5 +592,11 @@ impl Default for TrackSync {
 impl Default for InputMode {
     fn default() -> Self {
         InputMode::Run
+    }
+}
+
+impl<const X: u32> PartialEq<InputMode> for InputModeAtTime<X> {
+    fn eq(&self, other: &InputMode) -> bool {
+        self.0 == *other
     }
 }
