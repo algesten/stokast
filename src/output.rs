@@ -4,6 +4,7 @@ use imxrt_hal::iomuxc::gpio::Pin;
 use teensy4_bsp as bsp;
 
 use crate::state::State;
+use crate::state::TRACK_COUNT;
 use crate::CPU_SPEED;
 
 pub struct Outputs<P1, P2, P3, P4> {
@@ -26,27 +27,26 @@ where
 
         let playhead = state.playhead();
 
-        let (g1, g2, g3, g4) = {
-            if playhead != self.playhead_last {
-                self.playhead_last = playhead;
+        let mut gs = [Retain; TRACK_COUNT];
 
-                let pats = &state.generated.patterns;
+        if playhead != self.playhead_last {
+            self.playhead_last = playhead;
 
-                let g1 = pats[0][state.track_playhead[0]].into();
-                let g2 = pats[1][state.track_playhead[1]].into();
-                let g3 = pats[2][state.track_playhead[2]].into();
-                let g4 = pats[3][state.track_playhead[3]].into();
+            let pats = &state.generated.patterns;
 
-                (g1, g2, g3, g4)
-            } else {
-                (Retain, Retain, Retain, Retain)
+            for i in 0..TRACK_COUNT {
+                gs[i] = if state.mute[i] {
+                    Retain
+                } else {
+                    pats[i][state.track_playhead[i]].into()
+                };
             }
-        };
+        }
 
-        self.gate1.tick(now, g1, &state.predicted);
-        self.gate2.tick(now, g2, &state.predicted);
-        self.gate3.tick(now, g3, &state.predicted);
-        self.gate4.tick(now, g4, &state.predicted);
+        self.gate1.tick(now, gs[0], &state.predicted);
+        self.gate2.tick(now, gs[1], &state.predicted);
+        self.gate3.tick(now, gs[2], &state.predicted);
+        self.gate4.tick(now, gs[3], &state.predicted);
     }
 }
 

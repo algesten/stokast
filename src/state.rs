@@ -29,6 +29,9 @@ pub struct State {
     /// Generative parameters for generated.
     pub params: Params<{ TRACK_COUNT }>,
 
+    /// Mute flags for the tracks.
+    pub mute: [bool; TRACK_COUNT],
+
     /// The generated tracks.
     pub generated: Generated<{ TRACK_COUNT }>,
 
@@ -315,11 +318,7 @@ impl State {
                 }
 
                 Oper::StepsClick(tr) => {
-                    if self.input_mode == InputMode::TrackSync(tr) {
-                        input_mode = Some(InputMode::Steps(tr));
-                    } else {
-                        input_mode = Some(InputMode::TrackSync(tr));
-                    }
+                    self.mute[tr] = !self.mute[tr];
                 }
             }
         }
