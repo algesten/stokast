@@ -83,21 +83,19 @@ where
         set: GateSet,
         predicted: &Time<{ CPU_SPEED }>,
     ) {
-        // These gates are inverted out, so set_hilo(true) is OFF.
-
         match set {
             GateSet::Retain => {
                 if let Some(clear_at) = self.clear_at {
                     if now >= clear_at {
                         self.clear_at.take();
-                        self.pin.set_hilo(true);
+                        self.pin.set_hilo(false);
                         self.high = false;
                     }
                 }
             }
 
             GateSet::Set => {
-                self.pin.set_hilo(false);
+                self.pin.set_hilo(true);
                 self.high = true;
 
                 let duty_count = (predicted.count() * self.duty_percent) / 100;
@@ -108,7 +106,7 @@ where
             }
 
             GateSet::Clear => {
-                self.pin.set_hilo(true);
+                self.pin.set_hilo(false);
                 self.high = false;
 
                 self.clear_at.take();
