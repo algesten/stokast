@@ -135,6 +135,10 @@ impl Mode {
     }
 
     fn output(&self, offset: u32, rnd: &[u32], length: u8) -> u16 {
+        (68 * (self.hack_adjust_output_for_hw_bug(offset, rnd, length) as u32) / 100) as u16
+    }
+
+    fn hack_adjust_output_for_hw_bug(&self, offset: u32, rnd: &[u32], length: u8) -> u16 {
         assert!(length > 0);
 
         match self {
